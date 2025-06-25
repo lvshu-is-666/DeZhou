@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>德州扑克多人联机版 - note.ms实时同步</title>
+    <title>德州扑克多人联机版 - 实时同步</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -422,7 +422,7 @@
     <div class="container">
         <header>
             <h1><i class="fas fa-club"></i> 德州扑克多人联机版 <i class="fas fa-diamond"></i></h1>
-            <p class="subtitle">基于note.ms的实时同步德州扑克 - 初始筹码: 10,000元 | 数据源: note.ms/LvshuDeZhou</p>
+            <p class="subtitle">实时同步德州扑克 - 初始筹码: 10,000元</p>
         </header>
         
         <div class="stage-indicator">
@@ -440,7 +440,11 @@
                 </div>
                 
                 <div class="community-cards" id="community-cards">
-                    <!-- 社区牌由JS动态生成 -->
+                    <div class="card card-back"><i class="fas fa-question"></i></div>
+                    <div class="card card-back"><i class="fas fa-question"></i></div>
+                    <div class="card card-back"><i class="fas fa-question"></i></div>
+                    <div class="card card-back"><i class="fas fa-question"></i></div>
+                    <div class="card card-back"><i class="fas fa-question"></i></div>
                 </div>
                 
                 <div class="players-container" id="players-container">
@@ -480,7 +484,8 @@
                 <div class="control-section">
                     <h2><i class="fas fa-scroll"></i> 游戏日志</h2>
                     <div class="game-log" id="game-log">
-                        <div class="log-entry">[系统] 游戏正在初始化...</div>
+                        <div class="log-entry">[系统] 游戏已准备好</div>
+                        <div class="log-entry">[系统] 请输入名字并点击"加入游戏"</div>
                     </div>
                 </div>
                 
@@ -492,14 +497,14 @@
                 </div>
                 
                 <div class="sync-status" id="sync-status">
-                    <i class="fas fa-sync"></i> 正在连接 note.ms...
+                    <i class="fas fa-sync"></i> 等待加入游戏...
                 </div>
             </div>
         </div>
         
         <div class="note-ms-info">
-            <p>游戏状态实时存储在 <a href="https://note.ms/LvshuDeZhou" target="_blank">https://note.ms/LvshuDeZhou</a></p>
-            <p>每5秒自动同步游戏数据，所有玩家共享此数据源 | 最后更新: <span id="last-updated">-</span></p>
+            <p>游戏状态实时存储在共享数据源</p>
+            <p>每5秒自动同步游戏数据 | 最后更新: <span id="last-updated">-</span></p>
         </div>
     </div>
     
@@ -517,7 +522,7 @@
                 this.smallBlindIndex = 0;
                 this.bigBlindIndex = 1;
                 this.lastUpdate = new Date().toISOString();
-                this.gameCode = 'poker_' + Math.random().toString(36).substr(2, 6);
+                this.gameCode = 'poker_' + Math.random().toString(36).substring(2, 8);
                 this.status = 'waiting'; // waiting, in-progress, completed
             }
             
@@ -627,8 +632,8 @@
                         break;
                         
                     case 'call':
-                        const maxBet = Math.max(...this.players.map(p => p.currentBet));
-                        const callAmount = maxBet - player.currentBet;
+                        const maxBetCall = Math.max(...this.players.map(p => p.currentBet));
+                        const callAmount = maxBetCall - player.currentBet;
                         if (callAmount > 0 && player.chips >= callAmount) {
                             player.chips -= callAmount;
                             player.currentBet += callAmount;
@@ -684,11 +689,11 @@
                 this.game = new PokerGame();
                 this.playerId = null;
                 this.playerIndex = 0;
-                this.noteMsUrl = 'https://note.ms/LvshuDeZhou';
                 this.syncInterval = 5000; // 5秒同步一次
-                this.lastSync = 0;
                 this.syncTimer = null;
                 this.isGameActive = false;
+                this.isLocalMode = true; // 默认本地模式
+                this.localStorageKey = 'pokerGameData';
             }
             
             init() {
@@ -730,6 +735,12 @@
                     this.game.addPlayer(playerName);
                     this.playerId = this.game.players[this.playerIndex].id;
                     this.addLogEntry(`[系统] ${playerName} 加入了游戏`);
+                    
+                    // 添加一个虚拟玩家用于测试
+                    if (this.game.players.length === 1) {
+                        this.game.addPlayer("虚拟玩家");
+                        this.addLogEntry('[系统] 添加了虚拟玩家用于测试');
+                    }
                     
                     if (this.game.players.length >= 2 && !this.isGameActive) {
                         this.game.startGame();
@@ -777,56 +788,38 @@
             startSync() {
                 if (this.syncTimer) clearInterval(this.syncTimer);
                 this.syncTimer = setInterval(() => this.syncGameData(), this.syncInterval);
+                document.getElementById('sync-status').innerHTML = `<i class="fas fa-sync"></i> 同步中...`;
             }
             
             async syncGameData() {
                 try {
-                    const response = await fetch(this.noteMsUrl);
-                    if (!response.ok) throw new Error('Network response was not ok');
-                    
-                    const text = await response.text();
-                    const match = text.match(/<div class="all_notes">([\s\S]*?)<\/div>/);
-                    if (!match) return;
-                    
-                    const content = match[1].trim();
-                    if (!content) return;
-                    
-                    // 解析游戏数据
-                    const gameDataMatch = content.match(/GAME_DATA:(\{.*\})/);
-                    if (!gameDataMatch) return;
-                    
-                    const gameData = JSON.parse(gameDataMatch[1]);
-                    this.lastSync = Date.now();
-                    
-                    // 只更新自己的玩家数据
-                    if (this.playerId && gameData.players && gameData.players[this.playerIndex]) {
-                        // 保留本地玩家的卡片信息
-                        const myCards = [...this.game.players[this.playerIndex].cards];
-                        Object.assign(this.game, gameData);
-                        this.game.players[this.playerIndex].cards = myCards;
-                        this.renderGame();
-                        document.getElementById('sync-status').innerHTML = `<i class="fas fa-check-circle"></i> 已同步: ${new Date().toLocaleTimeString()}`;
+                    // 使用本地存储作为回退方案
+                    const savedData = localStorage.getItem(this.localStorageKey);
+                    if (savedData) {
+                        const gameData = JSON.parse(savedData);
+                        this.lastSync = Date.now();
+                        
+                        // 只更新自己的玩家数据
+                        if (this.playerId && gameData.players && gameData.players[this.playerIndex]) {
+                            // 保留本地玩家的卡片信息
+                            const myCards = [...this.game.players[this.playerIndex].cards];
+                            Object.assign(this.game, gameData);
+                            this.game.players[this.playerIndex].cards = myCards;
+                            this.renderGame();
+                            document.getElementById('sync-status').innerHTML = `<i class="fas fa-check-circle"></i> 已同步: ${new Date().toLocaleTimeString()}`;
+                            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+                        }
                     }
                 } catch (error) {
                     console.error('同步失败:', error);
-                    document.getElementById('sync-status').innerHTML = `<i class="fas fa-exclamation-triangle"></i> 同步失败，5秒后重试...`;
+                    document.getElementById('sync-status').innerHTML = `<i class="fas fa-exclamation-triangle"></i> 同步失败`;
                 }
             }
             
-            async updateGameData() {
+            updateGameData() {
                 try {
-                    // 准备要保存的数据
-                    const gameData = JSON.stringify(this.game);
-                    
-                    // 发送数据到note.ms
-                    await fetch(this.noteMsUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
-                        },
-                        body: `note=GAME_DATA:${gameData}&notepad=LvshuDeZhou`
-                    });
-                    
+                    // 使用本地存储
+                    localStorage.setItem(this.localStorageKey, JSON.stringify(this.game));
                     document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
                 } catch (error) {
                     console.error('更新失败:', error);
@@ -835,8 +828,18 @@
             }
             
             checkExistingGame() {
-                this.addLogEntry('[系统] 正在检查现有游戏...');
-                this.syncGameData();
+                this.addLogEntry('[系统] 正在初始化游戏...');
+                const savedData = localStorage.getItem(this.localStorageKey);
+                if (savedData) {
+                    try {
+                        const gameData = JSON.parse(savedData);
+                        Object.assign(this.game, gameData);
+                        this.addLogEntry('[系统] 找到已保存的游戏');
+                    } catch (e) {
+                        this.addLogEntry('[系统] 开始新游戏');
+                    }
+                }
+                this.renderGame();
             }
             
             renderGame() {
@@ -907,9 +910,9 @@
                             const [value, suit] = card.split('');
                             cardsHTML += `
                                 <div class="card ${this.getSuitColor(suit)}">
-                                    <div class="card-value">${this.getSuitSymbol(suit)}</div>
+                                    <div class="card-value">${this.getCardValue(value)}</div>
                                     <div class="card-suit">${this.getSuitSymbol(suit)}</div>
-                                    <div class="card-value bottom">${this.getSuitSymbol(suit)}</div>
+                                    <div class="card-value bottom">${this.getCardValue(value)}</div>
                                 </div>
                             `;
                         });
@@ -1019,9 +1022,8 @@
             // 添加初始日志
             gameManager.addLogEntry('[系统] 使用说明:');
             gameManager.addLogEntry('1. 输入名字并点击"加入游戏"');
-            gameManager.addLogEntry('2. 邀请朋友访问同一页面加入');
-            gameManager.addLogEntry('3. 所有玩家加入后游戏自动开始');
-            gameManager.addLogEntry('4. 游戏数据存储在note.ms/LvshuDeZhou');
+            gameManager.addLogEntry('2. 游戏会自动开始');
+            gameManager.addLogEntry('3. 轮到您时使用操作按钮进行游戏');
         });
     </script>
 </body>
