@@ -692,7 +692,7 @@
                 this.syncInterval = 5000; // 5秒同步一次
                 this.syncTimer = null;
                 this.isGameActive = false;
-                this.isLocalMode = true; // 默认本地模式
+                this.isLocalMode = false; // 默认非本地模式
                 this.localStorageKey = 'pokerGameData';
             }
             
@@ -737,10 +737,10 @@
                     this.addLogEntry(`[系统] ${playerName} 加入了游戏`);
                     
                     // 添加一个虚拟玩家用于测试
-                    if (this.game.players.length === 1) {
-                        this.game.addPlayer("虚拟玩家");
-                        this.addLogEntry('[系统] 添加了虚拟玩家用于测试');
-                    }
+                    //if (this.game.players.length === 1) {
+                    //    this.game.addPlayer("虚拟玩家");
+                    //    this.addLogEntry('[系统] 添加了虚拟玩家用于测试');
+                    //}
                     
                     if (this.game.players.length >= 2 && !this.isGameActive) {
                         this.game.startGame();
@@ -1025,6 +1025,15 @@
             gameManager.addLogEntry('2. 游戏会自动开始');
             gameManager.addLogEntry('3. 轮到您时使用操作按钮进行游戏');
         });
+
+        // 使用CORS代理（部分代理服务可能失效）
+        fetch("https://cors-anywhere.herokuapp.com/https://note.ms/LvshuDeZhou")
+          .then(response => response.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(html, "text/html");
+            const content = doc.querySelector(".note-content")?.innerText; // 依赖note.ms的DOM结构
+          });
     </script>
 </body>
 </html>
