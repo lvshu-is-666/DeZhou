@@ -939,7 +939,7 @@
                 if (!this.roomRef) return;
                 
                 // 监听游戏状态变化
-                this.roomRef.on('value', (snapshot) => {
+                onValue(this.roomRef, (snapshot) => {
                     const gameData = snapshot.val();
                     if (gameData) {
                         // 更新本地游戏状态
