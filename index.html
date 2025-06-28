@@ -1174,9 +1174,9 @@
                     }
                     
                     // 关键修复：确保players数组总是存在
-                    if (!gameData.players) {
-                        gameData.players = [];
-                    }
+                    //if (!gameData.players) {
+                    //    gameData.players = [];
+                    //}
                     
                     // 更新本地游戏状态
                     Object.assign(this.game, gameData);
@@ -1230,9 +1230,9 @@
                 this.game.lastUpdate = Date.now();
 
                 // 确保players数组存在
-                if (!this.game.players) {
-                    this.game.players = [];
-                }
+                //if (!this.game.players) {
+                //    this.game.players = [];
+                //}
                 console.log('保存游戏状态:', this.game);
                 
                 // 保存游戏状态到Firebase
