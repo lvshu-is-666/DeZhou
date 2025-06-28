@@ -623,6 +623,8 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
+        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+        
         // Firebase配置（替换为您的配置）
         const firebaseConfig = {
             apiKey: "AIzaSyATdknXiC3WoIAX1bdS8DSHCZAAbD_1RmM",
@@ -638,7 +640,8 @@
         // 初始化Firebase
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
-        const database = firebase.database();
+        const database = getDatabase();
+        const db = getDatabase(app);
         
         // 游戏状态模型
         class PokerGame {
