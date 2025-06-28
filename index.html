@@ -982,7 +982,7 @@
                 this.game.lastUpdate = Date.now();
                 
                 // 保存游戏状态到Firebase
-                this.roomRef.set(this.game)
+                set(this.roomRef, this.game)
                     .then(() => {
                         console.log('游戏状态已保存');
                     })
