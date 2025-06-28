@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>德州扑克 - 多人联机版</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <style>
         * {
             margin: 0;
@@ -619,28 +621,28 @@
     </div>
 
     <script type="module">
-      // Import the functions you need from the SDKs you need
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
-      import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
-      // TODO: Add SDKs for Firebase products that you want to use
-      // https://firebase.google.com/docs/web/setup#available-libraries
-    
-      // Your web app's Firebase configuration
-      // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-      const firebaseConfig = {
-        apiKey: "AIzaSyATdknXiC3WoIAX1bdS8DSHCZAAbD_1RmM",
-        authDomain: "poker-demo-d2798.firebaseapp.com",
-        databaseURL: "https://poker-demo-d2798-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "poker-demo-d2798",
-        storageBucket: "poker-demo-d2798.firebasestorage.app",
-        messagingSenderId: "123076736805",
-        appId: "1:123076736805:web:4e15b014e5c30a242d8ccc",
-        measurementId: "G-YP9QQ8G4LB"
-      };
-    
-      // Initialize Firebase
-      const app = initializeApp(firebaseConfig);
-      const analytics = getAnalytics(app);
+        // Import the functions you need from the SDKs you need
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
+        // TODO: Add SDKs for Firebase products that you want to use
+        // https://firebase.google.com/docs/web/setup#available-libraries
+        
+        // Your web app's Firebase configuration
+        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+        const firebaseConfig = {
+            apiKey: "AIzaSyATdknXiC3WoIAX1bdS8DSHCZAAbD_1RmM",
+            authDomain: "poker-demo-d2798.firebaseapp.com",
+            databaseURL: "https://poker-demo-d2798-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "poker-demo-d2798",
+            storageBucket: "poker-demo-d2798.firebasestorage.app",
+            messagingSenderId: "123076736805",
+            appId: "1:123076736805:web:4e15b014e5c30a242d8ccc",
+            measurementId: "G-YP9QQ8G4LB"
+        };
+        
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
     </script>
     
     <script>
@@ -657,7 +659,8 @@
       };
         
         // 初始化Firebase
-        firebase.initializeApp(firebaseConfig);
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
         const database = firebase.database();
         
         // 游戏状态模型
