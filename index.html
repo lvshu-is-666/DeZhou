@@ -623,7 +623,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
-        import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
+        import { getDatabase, ref, push, set, runTransaction, onValue } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
         
         // Firebase配置（替换为您的配置）
         const firebaseConfig = {
@@ -640,7 +640,7 @@
         // 初始化Firebase
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
-        const database = getDatabase();
+        const database = getDatabase(app);
         const db = getDatabase(app);
         
         // 游戏状态模型
@@ -895,7 +895,7 @@
                 this.playerIndex = 0;
                 
                 // 设置房间引用
-                this.roomRef = database.ref('poker-rooms/' + this.roomCode);
+                this.roomRef = ref(db, 'poker-rooms/' + this.roomCode);
                 
                 // 保存到Firebase
                 this.saveToFirebase();
@@ -926,7 +926,7 @@
                 this.roomCode = roomCode;
                 
                 // 设置房间引用
-                this.roomRef = database.ref('poker-rooms/' + this.roomCode);
+                this.roomRef = ref(db, 'poker-rooms/' + this.roomCode);
                 
                 // 设置监听
                 this.setupFirebaseListener();
