@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>德州扑克 - 多人联机版</title>
+    <title>Firebase德州扑克 - 多人联机版</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <style>
         * {
             margin: 0;
@@ -355,9 +357,11 @@
             display: flex;
             gap: 10px;
             margin-top: 20px;
+            flex-wrap: wrap;
         }
         input {
             flex: 1;
+            min-width: 200px;
             padding: 12px;
             border: none;
             border-radius: 8px;
@@ -460,6 +464,9 @@
             .card-suit {
                 font-size: 1.8rem;
             }
+            .player-join {
+                flex-direction: column;
+            }
         }
         .firebase-info {
             background: rgba(0, 0, 0, 0.5);
@@ -470,9 +477,37 @@
             font-size: 0.9rem;
             color: #ccc;
         }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .spinner {
+            border: 8px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top: 8px solid #ffd700;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+    </div>
+    
     <div class="container">
         <header>
             <h1><i class="fas fa-club"></i> Firebase德州扑克 <i class="fas fa-diamond"></i></h1>
@@ -585,7 +620,41 @@
         </div>
     </div>
 
-    <script>        
+    <script type="module">
+      // Import the functions you need from the SDKs you need
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
+      // TODO: Add SDKs for Firebase products that you want to use
+      // https://firebase.google.com/docs/web/setup#available-libraries
+    
+      // Your web app's Firebase configuration
+      // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+      const firebaseConfig = {
+        apiKey: "AIzaSyATdknXiC3WoIAX1bdS8DSHCZAAbD_1RmM",
+        authDomain: "poker-demo-d2798.firebaseapp.com",
+        projectId: "poker-demo-d2798",
+        storageBucket: "poker-demo-d2798.firebasestorage.app",
+        messagingSenderId: "123076736805",
+        appId: "1:123076736805:web:4e15b014e5c30a242d8ccc",
+        measurementId: "G-YP9QQ8G4LB"
+      };
+    
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const analytics = getAnalytics(app);
+        </script>
+    <script>
+        // Firebase配置（替换为您的配置）
+        const firebaseConfig = {
+            apiKey: "AIzaSyATdknXiC3WoIAX1bdS8DSHCZAAbD_1RmM",
+        authDomain: "poker-demo-d2798.firebaseapp.com",
+        projectId: "poker-demo-d2798",
+        storageBucket: "poker-demo-d2798.firebasestorage.app",
+        messagingSenderId: "123076736805",
+        appId: "1:123076736805:web:4e15b014e5c30a242d8ccc",
+        measurementId: "G-YP9QQ8G4LB"
+      };
+        
         // 初始化Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
@@ -604,6 +673,7 @@
                 this.bigBlindIndex = 1;
                 this.status = 'waiting';
                 this.roomCode = '';
+                this.lastUpdate = Date.now();
             }
             
             addPlayer(name) {
@@ -743,6 +813,7 @@
                 
                 if (success) {
                     this.moveToNextPlayer();
+                    this.lastUpdate = Date.now();
                 }
                 
                 return success;
@@ -777,11 +848,25 @@
                 this.playerIndex = -1;
                 this.roomRef = null;
                 this.roomCode = null;
+                this.isLoading = true;
             }
             
             init() {
                 this.setupEventListeners();
                 this.renderGame();
+                this.hideLoading();
+            }
+            
+            hideLoading() {
+                setTimeout(() => {
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    this.isLoading = false;
+                }, 1000);
+            }
+            
+            showLoading(message = "加载中...") {
+                document.getElementById('loading-overlay').style.display = 'flex';
+                this.isLoading = true;
             }
             
             setupEventListeners() {
@@ -803,9 +888,20 @@
                 
                 // 加入游戏按钮
                 document.getElementById('join-game').addEventListener('click', () => this.joinGame());
+                
+                // 玩家名字输入框回车事件
+                document.getElementById('player-name').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        this.createGame();
+                    }
+                });
             }
             
             createGame() {
+                if (this.isLoading) return;
+                
+                this.showLoading("创建房间中...");
+                
                 const playerName = document.getElementById('player-name').value.trim() || '玩家1';
                 this.roomCode = this.game.generateRoomCode();
                 
@@ -814,9 +910,8 @@
                 this.playerId = player.id;
                 this.playerIndex = 0;
                 
-                // 显示房间代码
-                document.getElementById('room-code').textContent = this.roomCode;
-                document.getElementById('room-info-text').textContent = '分享此代码给其他玩家';
+                // 设置房间引用
+                this.roomRef = database.ref('poker-rooms/' + this.roomCode);
                 
                 // 保存到Firebase
                 this.saveToFirebase();
@@ -824,11 +919,17 @@
                 // 设置监听
                 this.setupFirebaseListener();
                 
+                // 显示房间代码
+                document.getElementById('room-code').textContent = this.roomCode;
+                document.getElementById('room-info-text').textContent = '分享此代码给其他玩家';
+                
                 this.addLogEntry(`[系统] 房间已创建: ${this.roomCode}`);
                 this.addLogEntry(`[系统] 等待其他玩家加入...`);
             }
             
             joinGame() {
+                if (this.isLoading) return;
+                
                 const playerName = document.getElementById('player-name').value.trim() || '玩家' + (this.game.players.length + 1);
                 const roomCode = prompt('请输入房间代码:');
                 
@@ -837,7 +938,11 @@
                     return;
                 }
                 
+                this.showLoading("加入房间中...");
                 this.roomCode = roomCode;
+                
+                // 设置房间引用
+                this.roomRef = database.ref('poker-rooms/' + this.roomCode);
                 
                 // 设置监听
                 this.setupFirebaseListener();
@@ -847,9 +952,7 @@
             }
             
             setupFirebaseListener() {
-                if (!this.roomCode) return;
-                
-                this.roomRef = database.ref('poker-rooms/' + this.roomCode);
+                if (!this.roomRef) return;
                 
                 // 监听游戏状态变化
                 this.roomRef.on('value', (snapshot) => {
@@ -861,7 +964,8 @@
                         // 如果玩家还没有加入
                         if (this.playerIndex === -1) {
                             // 添加新玩家
-                            const player = this.game.addPlayer(document.getElementById('player-name').value.trim());
+                            const playerName = document.getElementById('player-name').value.trim() || '玩家' + (this.game.players.length + 1);
+                            const player = this.game.addPlayer(playerName);
                             this.playerId = player.id;
                             this.playerIndex = this.game.players.length - 1;
                             
@@ -880,14 +984,18 @@
                         
                         this.renderGame();
                         document.getElementById('sync-status').innerHTML = `<i class="fas fa-check-circle"></i> 已同步: ${new Date().toLocaleTimeString()}`;
-                        document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+                        document.getElementById('last-updated').textContent = new Date(this.game.lastUpdate).toLocaleTimeString();
                         document.getElementById('player-count').textContent = this.game.players.length;
+                        this.isLoading = false;
                     }
                 });
             }
             
             saveToFirebase() {
                 if (!this.roomRef) return;
+                
+                // 更新最后更新时间
+                this.game.lastUpdate = Date.now();
                 
                 // 保存游戏状态到Firebase
                 this.roomRef.set(this.game)
@@ -897,7 +1005,6 @@
                     .catch((error) => {
                         console.error('保存失败:', error);
                         this.addLogEntry('[系统] 保存游戏状态失败');
-                        this.addLogEntry(`[错误] 保存失败: ${error.message}`);
                     });
             }
             
@@ -1110,29 +1217,6 @@
             gameManager.addLogEntry('[系统] 欢迎使用Firebase德州扑克');
             gameManager.addLogEntry('[系统] 创建或加入房间开始游戏');
         });
-    </script>
-    <script type="module">
-      // Import the functions you need from the SDKs you need
-      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
-      import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
-      // TODO: Add SDKs for Firebase products that you want to use
-      // https://firebase.google.com/docs/web/setup#available-libraries
-    
-      // Your web app's Firebase configuration
-      // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-      const firebaseConfig = {
-        apiKey: "AIzaSyATdknXiC3WoIAX1bdS8DSHCZAAbD_1RmM",
-        authDomain: "poker-demo-d2798.firebaseapp.com",
-        projectId: "poker-demo-d2798",
-        storageBucket: "poker-demo-d2798.firebasestorage.app",
-        messagingSenderId: "123076736805",
-        appId: "1:123076736805:web:4e15b014e5c30a242d8ccc",
-        measurementId: "G-YP9QQ8G4LB"
-      };
-    
-      // Initialize Firebase
-      const app = initializeApp(firebaseConfig);
-      const analytics = getAnalytics(app);
     </script>
 </body>
 </html>
