@@ -1109,6 +1109,10 @@
                 
                 this.addLogEntry(`[系统] 房间已创建: ${this.roomCode}`);
                 this.addLogEntry(`[系统] 等待其他玩家加入...`);
+                
+                // 关键修复：确保在创建后立即渲染游戏
+                this.renderGame();
+                this.hideLoading();
             }
             
             joinGame() {
@@ -1169,6 +1173,11 @@
                         return;
                     }
                     
+                    // 关键修复：确保players数组总是存在
+                    if (!gameData.players) {
+                        gameData.players = [];
+                    }
+                    
                     // 更新本地游戏状态
                     Object.assign(this.game, gameData);
                     
@@ -1187,7 +1196,7 @@
                     }
                     
                     // 如果游戏尚未开始但有足够玩家
-                    if (this.game.status === 'waiting' && this.game.players.length >= 2) {
+                    if (this.game.status === 'waiting' && this.game.players.length >= 3) {
                         this.game.startGame();
                         this.saveToFirebase();
                     }
@@ -1219,6 +1228,12 @@
                 
                 // 更新最后更新时间
                 this.game.lastUpdate = Date.now();
+
+                // 确保players数组存在
+                if (!this.game.players) {
+                    this.game.players = [];
+                }
+                console.log('保存游戏状态:', this.game);
                 
                 // 保存游戏状态到Firebase
                 set(this.roomRef, this.game)
@@ -1309,8 +1324,11 @@
             renderPlayers() {
                 const container = document.getElementById('players-container');
                 container.innerHTML = '';
+
+                // 关键修复：确保players数组总是存在且可迭代
+                const players = Array.isArray(this.game.players) ? this.game.players : [];
                 
-                this.game.players.forEach((player, index) => {
+                players.forEach((player, index) => {
                     const playerEl = document.createElement('div');
                     playerEl.className = `player ${index === this.game.currentPlayerIndex ? 'active' : ''} ${player.folded ? 'folded' : ''} ${player.id === this.game.winnerId ? 'winner' : ''}`;
                     
@@ -1451,8 +1469,8 @@
             
             // 添加初始日志
             gameManager.addLogEntry('[系统] 欢迎使用德州扑克');
-            gameManager.addLogEntry('[系统] 已更新到 v7.0');
-            gameManager.addLogEntry('[系统] 修复了加载状态问题');
+            gameManager.addLogEntry('[系统] 已更新到 v8.0');
+            gameManager.addLogEntry('[系统] 修复了玩家列表未定义的问题');
         });
     </script>
 </body>
