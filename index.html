@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Firebase德州扑克 - 多人联机版</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <style>
         * {
             margin: 0;
@@ -632,6 +630,7 @@
       const firebaseConfig = {
         apiKey: "AIzaSyATdknXiC3WoIAX1bdS8DSHCZAAbD_1RmM",
         authDomain: "poker-demo-d2798.firebaseapp.com",
+        databaseURL: "https://poker-demo-d2798-default-rtdb.asia-southeast1.firebasedatabase.app",
         projectId: "poker-demo-d2798",
         storageBucket: "poker-demo-d2798.firebasestorage.app",
         messagingSenderId: "123076736805",
@@ -642,17 +641,19 @@
       // Initialize Firebase
       const app = initializeApp(firebaseConfig);
       const analytics = getAnalytics(app);
-        </script>
+    </script>
+    
     <script>
         // Firebase配置（替换为您的配置）
         const firebaseConfig = {
             apiKey: "AIzaSyATdknXiC3WoIAX1bdS8DSHCZAAbD_1RmM",
-        authDomain: "poker-demo-d2798.firebaseapp.com",
-        projectId: "poker-demo-d2798",
-        storageBucket: "poker-demo-d2798.firebasestorage.app",
-        messagingSenderId: "123076736805",
-        appId: "1:123076736805:web:4e15b014e5c30a242d8ccc",
-        measurementId: "G-YP9QQ8G4LB"
+            authDomain: "poker-demo-d2798.firebaseapp.com",
+            databaseURL: "https://poker-demo-d2798-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "poker-demo-d2798",
+            storageBucket: "poker-demo-d2798.firebasestorage.app",
+            messagingSenderId: "123076736805",
+            appId: "1:123076736805:web:4e15b014e5c30a242d8ccc",
+            measurementId: "G-YP9QQ8G4LB"
       };
         
         // 初始化Firebase
