@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>德州扑克多人联机版 - 实时同步</title>
+    <title>Firebase德州扑克 - 多人联机版</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
@@ -13,7 +13,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         body {
-            background: linear-gradient(135deg, #0d3b1e, #1a5d38);
+            background: linear-gradient(135deg, #0d2b45, #1a3b5a);
             color: #fff;
             min-height: 100vh;
             padding: 20px;
@@ -28,22 +28,50 @@
         header {
             text-align: center;
             padding: 20px;
-            background: rgba(0, 40, 20, 0.7);
+            background: rgba(0, 40, 60, 0.7);
             border-radius: 15px;
             margin-bottom: 20px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        header::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(0, 100, 150, 0.2) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(0, 80, 120, 0.2) 0%, transparent 20%);
+            z-index: -1;
         }
         h1 {
             font-size: 2.8rem;
             margin-bottom: 10px;
             text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
             color: #ffd700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
         }
         .subtitle {
             font-size: 1.2rem;
-            color: #e0ffe0;
+            color: #e0f7ff;
             max-width: 800px;
             margin: 0 auto;
+        }
+        .firebase-badge {
+            background: linear-gradient(to right, #ffca28, #f57c00);
+            color: #000;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            margin-top: 10px;
+            display: inline-block;
         }
         .game-container {
             display: flex;
@@ -54,7 +82,7 @@
         .game-board {
             flex: 3;
             min-width: 300px;
-            background: rgba(0, 60, 30, 0.8);
+            background: rgba(0, 60, 80, 0.8);
             border-radius: 15px;
             padding: 20px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
@@ -69,8 +97,8 @@
             right: 0;
             bottom: 0;
             background: 
-                radial-gradient(circle at 10% 20%, rgba(20, 100, 50, 0.2) 0%, transparent 20%),
-                radial-gradient(circle at 90% 80%, rgba(10, 80, 40, 0.2) 0%, transparent 20%);
+                radial-gradient(circle at 10% 20%, rgba(0, 100, 150, 0.2) 0%, transparent 20%),
+                radial-gradient(circle at 90% 80%, rgba(0, 80, 120, 0.2) 0%, transparent 20%);
             z-index: -1;
         }
         .community-cards {
@@ -78,7 +106,7 @@
             justify-content: center;
             gap: 10px;
             min-height: 150px;
-            background: rgba(0, 80, 40, 0.5);
+            background: rgba(0, 80, 120, 0.5);
             border-radius: 10px;
             padding: 15px;
             margin: 20px 0;
@@ -126,7 +154,7 @@
             transform: rotate(180deg);
         }
         .card-back {
-            background: linear-gradient(135deg, #1a2a6c, #2a693a);
+            background: linear-gradient(135deg, #1a2a6c, #2a699a);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -142,7 +170,7 @@
             justify-content: center;
         }
         .player {
-            background: rgba(20, 40, 25, 0.8);
+            background: rgba(20, 40, 60, 0.8);
             border-radius: 10px;
             padding: 15px;
             min-width: 220px;
@@ -201,14 +229,14 @@
             margin-top: 10px;
             text-align: center;
             font-style: italic;
-            color: #a0ffc0;
+            color: #a0e7ff;
             min-height: 24px;
             font-size: 0.9rem;
         }
         .game-controls {
             flex: 1;
             min-width: 300px;
-            background: rgba(0, 30, 15, 0.7);
+            background: rgba(0, 30, 45, 0.7);
             border-radius: 15px;
             padding: 20px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
@@ -222,6 +250,9 @@
             font-size: 1.8rem;
             border-bottom: 2px solid #ffd700;
             padding-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         .bet-controls {
             display: flex;
@@ -382,7 +413,35 @@
             text-align: center;
             padding: 8px;
             font-size: 0.9rem;
-            color: #a0ffc0;
+            color: #a0e7ff;
+        }
+        .room-info {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 10px;
+            text-align: center;
+        }
+        .room-code {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #ffd700;
+            margin: 10px 0;
+            letter-spacing: 3px;
+        }
+        .instructions {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        .instructions h3 {
+            color: #ffd700;
+            margin-bottom: 10px;
+        }
+        .instructions ul {
+            padding-left: 20px;
+            line-height: 1.6;
         }
         @media (max-width: 768px) {
             .game-container {
@@ -402,7 +461,7 @@
                 font-size: 1.8rem;
             }
         }
-        .note-ms-info {
+        .firebase-info {
             background: rgba(0, 0, 0, 0.5);
             padding: 15px;
             border-radius: 10px;
@@ -411,18 +470,16 @@
             font-size: 0.9rem;
             color: #ccc;
         }
-        .note-ms-info a {
-            color: #4dabf7;
-            text-decoration: none;
-            font-weight: bold;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-club"></i> 德州扑克多人联机版 <i class="fas fa-diamond"></i></h1>
-            <p class="subtitle">实时同步德州扑克 - 初始筹码: 10,000元</p>
+            <h1><i class="fas fa-club"></i> Firebase德州扑克 <i class="fas fa-diamond"></i></h1>
+            <p class="subtitle">多人联机版 - 初始筹码: 10,000元 | 实时同步</p>
+            <div class="firebase-badge">
+                <i class="fas fa-database"></i> 使用Firebase实时数据库
+            </div>
         </header>
         
         <div class="stage-indicator">
@@ -453,6 +510,12 @@
             </div>
             
             <div class="game-controls">
+                <div class="room-info">
+                    <h3>房间信息</h3>
+                    <div class="room-code" id="room-code">未创建</div>
+                    <div id="room-info-text">请加入或创建房间</div>
+                </div>
+                
                 <div class="control-section">
                     <h2><i class="fas fa-gamepad"></i> 游戏操作</h2>
                     <div class="bet-controls">
@@ -485,30 +548,48 @@
                     <h2><i class="fas fa-scroll"></i> 游戏日志</h2>
                     <div class="game-log" id="game-log">
                         <div class="log-entry">[系统] 游戏已准备好</div>
-                        <div class="log-entry">[系统] 请输入名字并点击"加入游戏"</div>
+                        <div class="log-entry">[系统] 请输入名字并创建或加入房间</div>
                     </div>
                 </div>
                 
                 <div class="player-join">
                     <input type="text" id="player-name" placeholder="输入你的名字" maxlength="15" value="玩家1">
+                    <button id="create-game">
+                        <i class="fas fa-plus-circle"></i> 创建房间
+                    </button>
                     <button id="join-game">
-                        <i class="fas fa-sign-in-alt"></i> 加入游戏
+                        <i class="fas fa-sign-in-alt"></i> 加入房间
                     </button>
                 </div>
                 
                 <div class="sync-status" id="sync-status">
-                    <i class="fas fa-sync"></i> 等待加入游戏...
+                    <i class="fas fa-sync"></i> 等待操作...
                 </div>
             </div>
         </div>
         
-        <div class="note-ms-info">
-            <p>游戏状态实时存储在共享数据源</p>
-            <p>每5秒自动同步游戏数据 | 最后更新: <span id="last-updated">-</span></p>
+        <div class="instructions">
+            <h3><i class="fas fa-info-circle"></i> 使用说明</h3>
+            <ul>
+                <li>1. 输入玩家名称并点击"创建房间"</li>
+                <li>2. 邀请朋友使用相同房间代码加入</li>
+                <li>3. 所有玩家加入后游戏自动开始</li>
+                <li>4. 轮到您时使用操作按钮进行游戏</li>
+                <li>5. 游戏状态实时保存在Firebase数据库中</li>
+            </ul>
+        </div>
+        
+        <div class="firebase-info">
+            <p>游戏状态实时存储在Firebase实时数据库中</p>
+            <p>最后更新: <span id="last-updated">-</span> | 玩家数量: <span id="player-count">0</span></p>
         </div>
     </div>
-    
-    <script>
+
+    <script>        
+        // 初始化Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        
         // 游戏状态模型
         class PokerGame {
             constructor() {
@@ -516,19 +597,18 @@
                 this.communityCards = [];
                 this.pot = 0;
                 this.currentPlayerIndex = 0;
-                this.gameStage = 0; // 0:Pre-flop, 1:Flop, 2:Turn, 3:River, 4:Showdown
+                this.gameStage = 0;
                 this.minBet = 20;
                 this.deck = [];
                 this.smallBlindIndex = 0;
                 this.bigBlindIndex = 1;
-                this.lastUpdate = new Date().toISOString();
-                this.gameCode = 'poker_' + Math.random().toString(36).substring(2, 8);
-                this.status = 'waiting'; // waiting, in-progress, completed
+                this.status = 'waiting';
+                this.roomCode = '';
             }
             
             addPlayer(name) {
                 const player = {
-                    id: this.players.length + 1,
+                    id: Date.now().toString(),
                     name: name || `玩家${this.players.length + 1}`,
                     chips: 10000,
                     currentBet: 0,
@@ -554,7 +634,7 @@
             }
             
             initializeDeck() {
-                const suits = ['h', 'd', 'c', 's']; // 红心、方块、梅花、黑桃
+                const suits = ['h', 'd', 'c', 's'];
                 const values = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
                 
                 this.deck = [];
@@ -573,14 +653,12 @@
             }
             
             dealCards() {
-                // 给每位玩家发两张牌
                 for (const player of this.players) {
                     player.cards = [this.deck.pop(), this.deck.pop()];
                 }
             }
             
             setBlinds() {
-                // 小盲注和大盲注
                 const smallBlind = Math.floor(this.minBet / 2);
                 const bigBlind = this.minBet;
                 
@@ -624,7 +702,6 @@
                         break;
                         
                     case 'check':
-                        // 只有在当前无需跟注时才能过牌
                         const maxBet = Math.max(...this.players.map(p => p.currentBet));
                         if (player.currentBet >= maxBet) {
                             success = true;
@@ -665,7 +742,6 @@
                 }
                 
                 if (success) {
-                    this.lastUpdate = new Date().toISOString();
                     this.moveToNextPlayer();
                 }
                 
@@ -681,6 +757,16 @@
             activePlayersCount() {
                 return this.players.filter(p => !p.folded).length;
             }
+            
+            generateRoomCode() {
+                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                let result = '';
+                for (let i = 0; i < 6; i++) {
+                    result += chars.charAt(Math.floor(Math.random() * chars.length));
+                }
+                this.roomCode = result;
+                return result;
+            }
         }
 
         // 游戏管理器
@@ -688,18 +774,14 @@
             constructor() {
                 this.game = new PokerGame();
                 this.playerId = null;
-                this.playerIndex = 0;
-                this.syncInterval = 5000; // 5秒同步一次
-                this.syncTimer = null;
-                this.isGameActive = false;
-                this.isLocalMode = false; // 默认非本地模式
-                this.localStorageKey = 'pokerGameData';
+                this.playerIndex = -1;
+                this.roomRef = null;
+                this.roomCode = null;
             }
             
             init() {
                 this.setupEventListeners();
                 this.renderGame();
-                this.checkExistingGame();
             }
             
             setupEventListeners() {
@@ -716,49 +798,110 @@
                     document.getElementById('bet-value').textContent = value.toLocaleString();
                 });
                 
+                // 创建游戏按钮
+                document.getElementById('create-game').addEventListener('click', () => this.createGame());
+                
                 // 加入游戏按钮
                 document.getElementById('join-game').addEventListener('click', () => this.joinGame());
+            }
+            
+            createGame() {
+                const playerName = document.getElementById('player-name').value.trim() || '玩家1';
+                this.roomCode = this.game.generateRoomCode();
                 
-                // 玩家名字输入框回车事件
-                document.getElementById('player-name').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        this.joinGame();
-                    }
-                });
+                // 添加玩家
+                const player = this.game.addPlayer(playerName);
+                this.playerId = player.id;
+                this.playerIndex = 0;
+                
+                // 显示房间代码
+                document.getElementById('room-code').textContent = this.roomCode;
+                document.getElementById('room-info-text').textContent = '分享此代码给其他玩家';
+                
+                // 保存到Firebase
+                this.saveToFirebase();
+                
+                // 设置监听
+                this.setupFirebaseListener();
+                
+                this.addLogEntry(`[系统] 房间已创建: ${this.roomCode}`);
+                this.addLogEntry(`[系统] 等待其他玩家加入...`);
             }
             
             joinGame() {
                 const playerName = document.getElementById('player-name').value.trim() || '玩家' + (this.game.players.length + 1);
+                const roomCode = prompt('请输入房间代码:');
                 
-                if (!this.playerId) {
-                    this.playerIndex = this.game.players.length;
-                    this.game.addPlayer(playerName);
-                    this.playerId = this.game.players[this.playerIndex].id;
-                    this.addLogEntry(`[系统] ${playerName} 加入了游戏`);
-                    
-                    // 添加一个虚拟玩家用于测试
-                    //if (this.game.players.length === 1) {
-                    //    this.game.addPlayer("虚拟玩家");
-                    //    this.addLogEntry('[系统] 添加了虚拟玩家用于测试');
-                    //}
-                    
-                    if (this.game.players.length >= 2 && !this.isGameActive) {
-                        this.game.startGame();
-                        this.isGameActive = true;
-                        this.addLogEntry('[系统] 游戏开始! 小盲注和大盲注已下');
-                        this.addLogEntry(`[系统] ${this.game.players[0].name} 下了小盲注(${Math.floor(this.game.minBet/2)})`);
-                        this.addLogEntry(`[系统] ${this.game.players[1].name} 下了大盲注(${this.game.minBet})`);
-                    }
-                    
-                    this.startSync();
+                if (!roomCode || roomCode.length !== 6) {
+                    alert('请输入有效的6位房间代码');
+                    return;
                 }
                 
-                this.renderGame();
-                this.updateGameData();
+                this.roomCode = roomCode;
+                
+                // 设置监听
+                this.setupFirebaseListener();
+                
+                document.getElementById('room-code').textContent = this.roomCode;
+                document.getElementById('room-info-text').textContent = '已加入房间';
+            }
+            
+            setupFirebaseListener() {
+                if (!this.roomCode) return;
+                
+                this.roomRef = database.ref('poker-rooms/' + this.roomCode);
+                
+                // 监听游戏状态变化
+                this.roomRef.on('value', (snapshot) => {
+                    const gameData = snapshot.val();
+                    if (gameData) {
+                        // 更新本地游戏状态
+                        Object.assign(this.game, gameData);
+                        
+                        // 如果玩家还没有加入
+                        if (this.playerIndex === -1) {
+                            // 添加新玩家
+                            const player = this.game.addPlayer(document.getElementById('player-name').value.trim());
+                            this.playerId = player.id;
+                            this.playerIndex = this.game.players.length - 1;
+                            
+                            // 保存到Firebase
+                            this.saveToFirebase();
+                            
+                            this.addLogEntry(`[系统] ${player.name} 加入了游戏`);
+                        }
+                        
+                        // 如果游戏尚未开始但有足够玩家
+                        if (this.game.status === 'waiting' && this.game.players.length >= 2) {
+                            this.game.startGame();
+                            this.addLogEntry('[系统] 游戏开始!');
+                            this.saveToFirebase();
+                        }
+                        
+                        this.renderGame();
+                        document.getElementById('sync-status').innerHTML = `<i class="fas fa-check-circle"></i> 已同步: ${new Date().toLocaleTimeString()}`;
+                        document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
+                        document.getElementById('player-count').textContent = this.game.players.length;
+                    }
+                });
+            }
+            
+            saveToFirebase() {
+                if (!this.roomRef) return;
+                
+                // 保存游戏状态到Firebase
+                this.roomRef.set(this.game)
+                    .then(() => {
+                        console.log('游戏状态已保存');
+                    })
+                    .catch((error) => {
+                        console.error('保存失败:', error);
+                        this.addLogEntry('[系统] 保存游戏状态失败');
+                    });
             }
             
             handlePlayerAction(action) {
-                if (this.playerIndex === null || !this.isGameActive) return;
+                if (this.playerIndex === -1 || this.game.status !== 'in-progress') return;
                 
                 let amount = 0;
                 if (action === 'raise') {
@@ -769,7 +912,7 @@
                 
                 if (success) {
                     this.addLogEntry(`[${this.game.players[this.playerIndex].name}] ${this.getActionName(action)}${amount > 0 ? ' ' + amount + '元' : ''}`);
-                    this.updateGameData();
+                    this.saveToFirebase();
                     this.renderGame();
                 }
             }
@@ -783,63 +926,6 @@
                     'allin': '全下'
                 };
                 return names[action] || action;
-            }
-            
-            startSync() {
-                if (this.syncTimer) clearInterval(this.syncTimer);
-                this.syncTimer = setInterval(() => this.syncGameData(), this.syncInterval);
-                document.getElementById('sync-status').innerHTML = `<i class="fas fa-sync"></i> 同步中...`;
-            }
-            
-            async syncGameData() {
-                try {
-                    // 使用本地存储作为回退方案
-                    const savedData = localStorage.getItem(this.localStorageKey);
-                    if (savedData) {
-                        const gameData = JSON.parse(savedData);
-                        this.lastSync = Date.now();
-                        
-                        // 只更新自己的玩家数据
-                        if (this.playerId && gameData.players && gameData.players[this.playerIndex]) {
-                            // 保留本地玩家的卡片信息
-                            const myCards = [...this.game.players[this.playerIndex].cards];
-                            Object.assign(this.game, gameData);
-                            this.game.players[this.playerIndex].cards = myCards;
-                            this.renderGame();
-                            document.getElementById('sync-status').innerHTML = `<i class="fas fa-check-circle"></i> 已同步: ${new Date().toLocaleTimeString()}`;
-                            document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
-                        }
-                    }
-                } catch (error) {
-                    console.error('同步失败:', error);
-                    document.getElementById('sync-status').innerHTML = `<i class="fas fa-exclamation-triangle"></i> 同步失败`;
-                }
-            }
-            
-            updateGameData() {
-                try {
-                    // 使用本地存储
-                    localStorage.setItem(this.localStorageKey, JSON.stringify(this.game));
-                    document.getElementById('last-updated').textContent = new Date().toLocaleTimeString();
-                } catch (error) {
-                    console.error('更新失败:', error);
-                    this.addLogEntry('[系统] 更新游戏数据失败');
-                }
-            }
-            
-            checkExistingGame() {
-                this.addLogEntry('[系统] 正在初始化游戏...');
-                const savedData = localStorage.getItem(this.localStorageKey);
-                if (savedData) {
-                    try {
-                        const gameData = JSON.parse(savedData);
-                        Object.assign(this.game, gameData);
-                        this.addLogEntry('[系统] 找到已保存的游戏');
-                    } catch (e) {
-                        this.addLogEntry('[系统] 开始新游戏');
-                    }
-                }
-                this.renderGame();
             }
             
             renderGame() {
@@ -865,7 +951,6 @@
                 const container = document.getElementById('community-cards');
                 container.innerHTML = '';
                 
-                // 显示5张社区牌（根据当前阶段显示相应数量的牌）
                 for (let i = 0; i < 5; i++) {
                     const cardEl = document.createElement('div');
                     
@@ -895,13 +980,13 @@
                     const playerEl = document.createElement('div');
                     playerEl.className = `player ${index === this.game.currentPlayerIndex ? 'active' : ''} ${player.folded ? 'folded' : ''}`;
                     
-                    // 显示下注金额（如果有）
+                    // 显示下注金额
                     let betEl = '';
                     if (player.currentBet > 0) {
                         betEl = `<div class="player-bet">${player.currentBet}</div>`;
                     }
                     
-                    // 显示手牌（只显示自己的牌，其他玩家显示背面）
+                    // 显示手牌
                     let cardsHTML = '';
                     if (index === this.playerIndex) {
                         // 显示自己的牌
@@ -946,7 +1031,7 @@
             }
             
             getPlayerStatus(player, index) {
-                if (!this.isGameActive) return '等待游戏开始';
+                if (this.game.status === 'waiting') return '等待开始';
                 if (player.folded) return '已弃牌';
                 if (index === this.game.currentPlayerIndex) return '轮到行动';
                 if (player.currentBet > 0) return `已下注 ${player.currentBet}`;
@@ -955,29 +1040,30 @@
             
             updateActionButtons() {
                 const isMyTurn = this.playerIndex === this.game.currentPlayerIndex;
-                const player = this.playerIndex !== null ? this.game.players[this.playerIndex] : null;
+                const player = this.playerIndex !== -1 ? this.game.players[this.playerIndex] : null;
                 const maxBet = Math.max(...this.game.players.map(p => p.currentBet));
+                const isGameActive = this.game.status === 'in-progress';
                 
-                // 弃牌按钮始终可用
-                document.getElementById('btn-fold').disabled = !isMyTurn || !this.isGameActive;
+                // 弃牌按钮
+                document.getElementById('btn-fold').disabled = !isMyTurn || !isGameActive;
                 
-                // 过牌按钮（只有在当前无需跟注时才可用）
+                // 过牌按钮
                 const canCheck = player && player.currentBet >= maxBet;
-                document.getElementById('btn-check').disabled = !isMyTurn || !this.isGameActive || !canCheck;
+                document.getElementById('btn-check').disabled = !isMyTurn || !isGameActive || !canCheck;
                 
-                // 跟注按钮（需要跟注时才显示金额）
+                // 跟注按钮
                 const callAmount = player ? maxBet - player.currentBet : 0;
-                document.getElementById('btn-call').disabled = !isMyTurn || !this.isGameActive || callAmount <= 0;
+                document.getElementById('btn-call').disabled = !isMyTurn || !isGameActive || callAmount <= 0;
                 document.getElementById('btn-call').innerHTML = callAmount > 0 ? 
                     `<i class="fas fa-handshake"></i> 跟注 ${callAmount}` : 
                     `<i class="fas fa-check"></i> 过牌`;
                 
-                // 加注按钮（需要有足够筹码）
+                // 加注按钮
                 const canRaise = player && player.chips > 0;
-                document.getElementById('btn-raise').disabled = !isMyTurn || !this.isGameActive || !canRaise;
+                document.getElementById('btn-raise').disabled = !isMyTurn || !isGameActive || !canRaise;
                 
                 // 全下按钮
-                document.getElementById('btn-allin').disabled = !isMyTurn || !this.isGameActive || !player || player.chips <= 0;
+                document.getElementById('btn-allin').disabled = !isMyTurn || !isGameActive || !player || player.chips <= 0;
                 
                 // 更新滑块最大值
                 if (player) {
@@ -1020,20 +1106,32 @@
             gameManager.init();
             
             // 添加初始日志
-            gameManager.addLogEntry('[系统] 使用说明:');
-            gameManager.addLogEntry('1. 输入名字并点击"加入游戏"');
-            gameManager.addLogEntry('2. 游戏会自动开始');
-            gameManager.addLogEntry('3. 轮到您时使用操作按钮进行游戏');
+            gameManager.addLogEntry('[系统] 欢迎使用Firebase德州扑克');
+            gameManager.addLogEntry('[系统] 创建或加入房间开始游戏');
         });
-
-        // 使用CORS代理（部分代理服务可能失效）
-        fetch("https://cors-anywhere.herokuapp.com/https://note.ms/LvshuDeZhou")
-          .then(response => response.text())
-          .then(html => {
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, "text/html");
-            const content = doc.querySelector(".note-content")?.innerText; // 依赖note.ms的DOM结构
-          });
+    </script>
+    <script type="module">
+      // Import the functions you need from the SDKs you need
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+      import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-analytics.js";
+      // TODO: Add SDKs for Firebase products that you want to use
+      // https://firebase.google.com/docs/web/setup#available-libraries
+    
+      // Your web app's Firebase configuration
+      // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+      const firebaseConfig = {
+        apiKey: "AIzaSyATdknXiC3WoIAX1bdS8DSHCZAAbD_1RmM",
+        authDomain: "poker-demo-d2798.firebaseapp.com",
+        projectId: "poker-demo-d2798",
+        storageBucket: "poker-demo-d2798.firebasestorage.app",
+        messagingSenderId: "123076736805",
+        appId: "1:123076736805:web:4e15b014e5c30a242d8ccc",
+        measurementId: "G-YP9QQ8G4LB"
+      };
+    
+      // Initialize Firebase
+      const app = initializeApp(firebaseConfig);
+      const analytics = getAnalytics(app);
     </script>
 </body>
 </html>
