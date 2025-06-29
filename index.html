@@ -531,9 +531,20 @@
             font-size: 0.85rem;
             max-width: 600px;
         }
-        .db-config h4 {
-            color: #ffd700;
-            margin-bottom: 10px;
+        .hand-strength {
+            position: absolute;
+            bottom: 5px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 0.8rem;
+            color: #4ade80;
+            font-weight: bold;
+        }
+        .hand-name {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 2px 5px;
+            border-radius: 5px;
         }
     </style>
 </head>
@@ -655,20 +666,8 @@
                 <li>3. 所有玩家加入后游戏自动开始</li>
                 <li>4. 轮到您时使用操作按钮进行游戏</li>
                 <li>5. 游戏状态实时保存在Firebase新加坡数据库中</li>
+                <li>6. 修复了所有下注逻辑和判断输赢逻辑的问题</li>
             </ul>
-            
-            <div class="db-config">
-                <h4><i class="fas fa-cog"></i> Firebase数据库配置</h4>
-                <p>请确保在Firebase控制台设置以下数据库规则：</p>
-                <pre>
-{
-  "rules": {
-    ".read": "auth == null",
-    ".write": "auth == null"
-  }
-}</pre>
-                <p>注意：此规则允许公开读写，仅用于测试环境</p>
-            </div>
         </div>
         
         <div class="firebase-info">
@@ -709,7 +708,8 @@
                 this.pot = 0;
                 this.currentPlayerIndex = 0;
                 this.gameStage = 0; // 0=翻牌前,1=翻牌,2=转牌,3=河牌,4=比牌
-                this.minBet = 20;
+                this.minBet = 20; // 大盲注
+                this.minRaise = this.minBet; // 最小加注额
                 this.deck = [];
                 this.smallBlindIndex = 0;
                 this.bigBlindIndex = 1;
@@ -718,6 +718,7 @@
                 this.lastUpdate = Date.now();
                 this.winnerId = null;
                 this.events = [];
+                this.currentMaxBet = 0; // 当前轮最大下注额
             }
             
             addPlayer(name) {
@@ -729,7 +730,8 @@
                     folded: false,
                     cards: [],
                     isActive: true,
-                    lastAction: ''
+                    lastAction: '',
+                    handStrength: null
                 };
                 this.players.push(player);
                 return player;
@@ -786,6 +788,7 @@
                 
                 this.pot = smallBlind + bigBlind;
                 this.currentPlayerIndex = (this.bigBlindIndex + 1) % this.players.length;
+                this.currentMaxBet = bigBlind;
                 
                 this.addEvent(`${this.players[this.smallBlindIndex].name} 下小盲注 ${smallBlind}`);
                 this.addEvent(`${this.players[this.bigBlindIndex].name} 下大盲注 ${bigBlind}`);
@@ -818,6 +821,7 @@
                 // 重置玩家下注状态
                 this.resetPlayerBets();
                 this.currentPlayerIndex = this.smallBlindIndex;
+                this.currentMaxBet = 0;
             }
             
             resetPlayerBets() {
@@ -844,33 +848,37 @@
                         break;
                         
                     case 'check':
-                        const maxBet = Math.max(...this.players.map(p => p.currentBet));
-                        if (player.currentBet >= maxBet) {
+                        if (player.currentBet >= this.currentMaxBet) {
                             success = true;
                             actionMessage = `${player.name} 过牌`;
                         }
                         break;
                         
                     case 'call':
-                        const maxBetCall = Math.max(...this.players.map(p => p.currentBet));
-                        const callAmount = maxBetCall - player.currentBet;
-                        if (callAmount > 0 && player.chips >= callAmount) {
+                        const callAmount = Math.min(player.chips, this.currentMaxBet - player.currentBet);
+                        if (callAmount > 0) {
                             player.chips -= callAmount;
                             player.currentBet += callAmount;
                             this.pot += callAmount;
                             success = true;
                             actionMessage = `${player.name} 跟注 ${callAmount}`;
+                        } else {
+                            success = true;
+                            actionMessage = `${player.name} 无法跟注`;
                         }
                         break;
                         
                     case 'raise':
-                        if (amount >= this.minBet && player.chips >= amount) {
-                            player.chips -= amount;
-                            player.currentBet += amount;
-                            this.pot += amount;
-                            this.minBet = amount;
+                        const minRaiseAmount = this.currentMaxBet + this.minRaise;
+                        const raiseAmount = Math.max(minRaiseAmount, amount);
+                        
+                        if (player.chips >= raiseAmount) {
+                            player.chips -= raiseAmount;
+                            player.currentBet += raiseAmount;
+                            this.pot += raiseAmount;
+                            this.currentMaxBet = player.currentBet;
                             success = true;
-                            actionMessage = `${player.name} 加注 ${amount}`;
+                            actionMessage = `${player.name} 加注 ${raiseAmount}`;
                         }
                         break;
                         
@@ -880,7 +888,9 @@
                             player.chips = 0;
                             player.currentBet += allInAmount;
                             this.pot += allInAmount;
-                            this.minBet = Math.max(this.minBet, allInAmount);
+                            if (allInAmount > this.currentMaxBet) {
+                                this.currentMaxBet = allInAmount;
+                            }
                             success = true;
                             actionMessage = `${player.name} 全下 ${allInAmount}`;
                         }
@@ -925,9 +935,8 @@
                 if (activePlayers.length === 0) return;
                 
                 // 检查是否所有玩家下注额相等或都过牌
-                const maxBet = Math.max(...activePlayers.map(p => p.currentBet));
                 const allActionsComplete = activePlayers.every(player => {
-                    return player.currentBet === maxBet || player.lastAction === 'check';
+                    return player.currentBet === this.currentMaxBet || player.lastAction === 'check';
                 });
                 
                 if (allActionsComplete) {
@@ -941,34 +950,341 @@
             }
             
             determineWinner() {
-                // 简化的获胜逻辑：高牌
-                let bestScore = 0;
-                let winner = null;
+                // 评估所有未弃牌玩家的牌型
+                for (const player of this.players) {
+                    if (!player.folded) {
+                        const allCards = [...player.cards, ...this.communityCards];
+                        player.handStrength = this.evaluateHand(allCards);
+                    }
+                }
+                
+                // 找到最佳牌型
+                let bestHand = null;
+                let winners = [];
                 
                 for (const player of this.players) {
                     if (player.folded) continue;
                     
-                    // 简化的计分：最大牌值
-                    const cardValues = player.cards.map(card => {
-                        const value = card.charAt(0);
-                        return '23456789TJQKA'.indexOf(value);
-                    });
-                    
-                    const playerScore = Math.max(...cardValues);
-                    if (playerScore > bestScore) {
-                        bestScore = playerScore;
-                        winner = player;
+                    if (!bestHand || this.compareHands(player.handStrength, bestHand) > 0) {
+                        bestHand = player.handStrength;
+                        winners = [player];
+                    } else if (this.compareHands(player.handStrength, bestHand) === 0) {
+                        winners.push(player);
                     }
                 }
                 
-                if (winner) {
-                    winner.chips += this.pot;
-                    this.winnerId = winner.id;
-                    this.addEvent(`${winner.name} 赢得彩池 ${this.pot}！`);
+                // 分配彩池
+                if (winners.length > 0) {
+                    const winAmount = Math.floor(this.pot / winners.length);
+                    for (const winner of winners) {
+                        winner.chips += winAmount;
+                    }
+                    
+                    if (winners.length === 1) {
+                        this.addEvent(`${winners[0].name} 以 ${this.getHandName(bestHand.rank)} 赢得彩池 ${this.pot}!`);
+                    } else {
+                        this.addEvent(`${winners.map(w => w.name).join(', ')} 以 ${this.getHandName(bestHand.rank)} 平分彩池 ${this.pot}!`);
+                    }
+                    
                     this.pot = 0;
+                    this.winnerId = winners.map(w => w.id);
                 }
                 
                 this.status = 'completed';
+            }
+            
+            // 手牌评估系统
+            evaluateHand(cards) {
+                // 转换卡片格式
+                const formattedCards = cards.map(card => {
+                    const value = card.charAt(0);
+                    const suit = card.charAt(1);
+                    const numericValue = '23456789TJQKA'.indexOf(value);
+                    return { value, suit, numericValue };
+                }).sort((a, b) => b.numericValue - a.numericValue);
+                
+                // 检查同花顺
+                const straightFlush = this.checkStraightFlush(formattedCards);
+                if (straightFlush) return straightFlush;
+                
+                // 检查四条
+                const fourOfAKind = this.checkFourOfAKind(formattedCards);
+                if (fourOfAKind) return fourOfAKind;
+                
+                // 检查葫芦
+                const fullHouse = this.checkFullHouse(formattedCards);
+                if (fullHouse) return fullHouse;
+                
+                // 检查同花
+                const flush = this.checkFlush(formattedCards);
+                if (flush) return flush;
+                
+                // 检查顺子
+                const straight = this.checkStraight(formattedCards);
+                if (straight) return straight;
+                
+                // 检查三条
+                const threeOfAKind = this.checkThreeOfAKind(formattedCards);
+                if (threeOfAKind) return threeOfAKind;
+                
+                // 检查两对
+                const twoPair = this.checkTwoPair(formattedCards);
+                if (twoPair) return twoPair;
+                
+                // 检查一对
+                const onePair = this.checkOnePair(formattedCards);
+                if (onePair) return onePair;
+                
+                // 高牌
+                return this.checkHighCard(formattedCards);
+            }
+            
+            checkStraightFlush(cards) {
+                const flushCards = this.getFlushCards(cards);
+                if (flushCards) {
+                    const straight = this.checkStraight(flushCards);
+                    if (straight) {
+                        return {
+                            rank: 8,
+                            value: straight.value,
+                            cards: straight.cards
+                        };
+                    }
+                }
+                return null;
+            }
+            
+            checkFourOfAKind(cards) {
+                const groups = this.groupByValue(cards);
+                for (const value in groups) {
+                    if (groups[value].length === 4) {
+                        const kickers = cards.filter(c => c.numericValue !== parseInt(value))
+                            .sort((a, b) => b.numericValue - a.numericValue)
+                            .slice(0, 1);
+                        return {
+                            rank: 7,
+                            value: parseInt(value),
+                            kickers: kickers.map(c => c.numericValue),
+                            cards: [...groups[value], ...kickers]
+                        };
+                    }
+                }
+                return null;
+            }
+            
+            checkFullHouse(cards) {
+                const groups = this.groupByValue(cards);
+                let three = null;
+                let two = null;
+                
+                for (const value in groups) {
+                    if (groups[value].length === 3) {
+                        three = groups[value];
+                    } else if (groups[value].length === 2) {
+                        two = groups[value];
+                    }
+                }
+                
+                if (three && two) {
+                    return {
+                        rank: 6,
+                        value: three[0].numericValue,
+                        secondary: two[0].numericValue,
+                        cards: [...three.slice(0, 3), ...two.slice(0, 2)]
+                    };
+                }
+                return null;
+            }
+            
+            checkFlush(cards) {
+                const flushCards = this.getFlushCards(cards);
+                if (flushCards) {
+                    return {
+                        rank: 5,
+                        value: flushCards[0].numericValue,
+                        cards: flushCards.slice(0, 5)
+                    };
+                }
+                return null;
+            }
+            
+            checkStraight(cards) {
+                // 去重
+                const uniqueCards = [];
+                const seen = {};
+                for (const card of cards) {
+                    if (!seen[card.numericValue]) {
+                        uniqueCards.push(card);
+                        seen[card.numericValue] = true;
+                    }
+                }
+                
+                if (uniqueCards.length < 5) return null;
+                
+                // 检查普通顺子
+                for (let i = 0; i <= uniqueCards.length - 5; i++) {
+                    if (uniqueCards[i].numericValue - uniqueCards[i + 4].numericValue === 4) {
+                        return {
+                            rank: 4,
+                            value: uniqueCards[i].numericValue,
+                            cards: uniqueCards.slice(i, i + 5)
+                        };
+                    }
+                }
+                
+                // 检查A-5顺子
+                if (uniqueCards[0].numericValue === 12) { // A
+                    const lowStraight = [0, 1, 2, 3]; // 2,3,4,5
+                    const hasLow = lowStraight.every(val => 
+                        uniqueCards.some(c => c.numericValue === val));
+                    
+                    if (hasLow) {
+                        const lowCards = [
+                            ...uniqueCards.filter(c => lowStraight.includes(c.numericValue)),
+                            uniqueCards[0] // A
+                        ].sort((a, b) => b.numericValue - a.numericValue);
+                        
+                        return {
+                            rank: 4,
+                            value: 3, // 5高顺子
+                            cards: lowCards.slice(0, 5)
+                        };
+                    }
+                }
+                
+                return null;
+            }
+            
+            checkThreeOfAKind(cards) {
+                const groups = this.groupByValue(cards);
+                for (const value in groups) {
+                    if (groups[value].length === 3) {
+                        const kickers = cards.filter(c => c.numericValue !== parseInt(value))
+                            .sort((a, b) => b.numericValue - a.numericValue)
+                            .slice(0, 2);
+                        return {
+                            rank: 3,
+                            value: parseInt(value),
+                            kickers: kickers.map(c => c.numericValue),
+                            cards: [...groups[value].slice(0, 3), ...kickers]
+                        };
+                    }
+                }
+                return null;
+            }
+            
+            checkTwoPair(cards) {
+                const groups = this.groupByValue(cards);
+                const pairs = [];
+                for (const value in groups) {
+                    if (groups[value].length === 2) {
+                        pairs.push({ value: parseInt(value), cards: groups[value] });
+                    }
+                }
+                
+                if (pairs.length >= 2) {
+                    pairs.sort((a, b) => b.value - a.value);
+                    const kicker = cards.filter(c => 
+                        c.numericValue !== pairs[0].value && 
+                        c.numericValue !== pairs[1].value)
+                        .sort((a, b) => b.numericValue - a.numericValue)[0];
+                    
+                    return {
+                        rank: 2,
+                        value: pairs[0].value,
+                        secondary: pairs[1].value,
+                        kicker: kicker.numericValue,
+                        cards: [...pairs[0].cards.slice(0, 2), ...pairs[1].cards.slice(0, 2), kicker]
+                    };
+                }
+                return null;
+            }
+            
+            checkOnePair(cards) {
+                const groups = this.groupByValue(cards);
+                for (const value in groups) {
+                    if (groups[value].length === 2) {
+                        const kickers = cards.filter(c => c.numericValue !== parseInt(value))
+                            .sort((a, b) => b.numericValue - a.numericValue)
+                            .slice(0, 3);
+                        return {
+                            rank: 1,
+                            value: parseInt(value),
+                            kickers: kickers.map(c => c.numericValue),
+                            cards: [...groups[value].slice(0, 2), ...kickers]
+                        };
+                    }
+                }
+                return null;
+            }
+            
+            checkHighCard(cards) {
+                return {
+                    rank: 0,
+                    value: cards[0].numericValue,
+                    kickers: cards.slice(1, 5).map(c => c.numericValue),
+                    cards: cards.slice(0, 5)
+                };
+            }
+            
+            getFlushCards(cards) {
+                const suits = {};
+                for (const card of cards) {
+                    suits[card.suit] = (suits[card.suit] || []).concat(card);
+                }
+                for (const suit in suits) {
+                    if (suits[suit].length >= 5) {
+                        return suits[suit].sort((a, b) => b.numericValue - a.numericValue);
+                    }
+                }
+                return null;
+            }
+            
+            groupByValue(cards) {
+                const groups = {};
+                for (const card of cards) {
+                    groups[card.numericValue] = groups[card.numericValue] || [];
+                    groups[card.numericValue].push(card);
+                }
+                return groups;
+            }
+            
+            compareHands(hand1, hand2) {
+                // 比较牌型等级
+                if (hand1.rank !== hand2.rank) {
+                    return hand1.rank - hand2.rank;
+                }
+                
+                // 比较主要牌值
+                if (hand1.value !== hand2.value) {
+                    return hand1.value - hand2.value;
+                }
+                
+                // 比较次要牌值（葫芦、两对）
+                if (hand1.secondary !== undefined && hand2.secondary !== undefined) {
+                    if (hand1.secondary !== hand2.secondary) {
+                        return hand1.secondary - hand2.secondary;
+                    }
+                }
+                
+                // 比较踢脚牌
+                for (let i = 0; i < Math.max(hand1.kickers?.length || 0, hand2.kickers?.length || 0); i++) {
+                    const k1 = hand1.kickers?.[i] || 0;
+                    const k2 = hand2.kickers?.[i] || 0;
+                    if (k1 !== k2) {
+                        return k1 - k2;
+                    }
+                }
+                
+                return 0; // 平手
+            }
+            
+            getHandName(rank) {
+                const names = [
+                    "高牌", "一对", "两对", "三条", 
+                    "顺子", "同花", "葫芦", "四条", "同花顺"
+                ];
+                return names[rank] || rank;
             }
             
             generateRoomCode() {
@@ -993,8 +1309,10 @@
                 this.pot = 0;
                 this.gameStage = 0;
                 this.minBet = 20;
+                this.minRaise = this.minBet;
                 this.winnerId = null;
                 this.status = 'in-progress';
+                this.currentMaxBet = 0;
                 
                 // 重置玩家状态但保留筹码
                 for (const player of this.players) {
@@ -1002,7 +1320,12 @@
                     player.folded = false;
                     player.cards = [];
                     player.lastAction = '';
+                    player.handStrength = null;
                 }
+                
+                // 轮转盲注位置
+                this.smallBlindIndex = (this.smallBlindIndex + 1) % this.players.length;
+                this.bigBlindIndex = (this.bigBlindIndex + 1) % this.players.length;
                 
                 // 重新开始游戏
                 this.initializeDeck();
@@ -1173,11 +1496,6 @@
                         return;
                     }
                     
-                    // 关键修复：确保players数组总是存在
-                    //if (!gameData.players) {
-                    //    gameData.players = [];
-                    //}
-                    
                     // 更新本地游戏状态
                     Object.assign(this.game, gameData);
                     
@@ -1196,7 +1514,7 @@
                     }
                     
                     // 如果游戏尚未开始但有足够玩家
-                    if (this.game.status === 'waiting' && this.game.players.length >= 3) {
+                    if (this.game.status === 'waiting' && this.game.players.length >= 2) {
                         this.game.startGame();
                         this.saveToFirebase();
                     }
@@ -1228,12 +1546,6 @@
                 
                 // 更新最后更新时间
                 this.game.lastUpdate = Date.now();
-
-                // 确保players数组存在
-                //if (!this.game.players) {
-                //    this.game.players = [];
-                //}
-                console.log('保存游戏状态:', this.game);
                 
                 // 保存游戏状态到Firebase
                 set(this.roomRef, this.game)
@@ -1330,7 +1642,7 @@
                 
                 players.forEach((player, index) => {
                     const playerEl = document.createElement('div');
-                    playerEl.className = `player ${index === this.game.currentPlayerIndex ? 'active' : ''} ${player.folded ? 'folded' : ''} ${player.id === this.game.winnerId ? 'winner' : ''}`;
+                    playerEl.className = `player ${index === this.game.currentPlayerIndex ? 'active' : ''} ${player.folded ? 'folded' : ''} ${this.game.winnerId?.includes(player.id) ? 'winner' : ''}`;
                     
                     // 显示下注金额
                     let betEl = '';
@@ -1367,6 +1679,16 @@
                         });
                     }
                     
+                    // 显示手牌强度（比牌阶段）
+                    let handStrengthHTML = '';
+                    if (isShowdown && !player.folded && player.handStrength) {
+                        handStrengthHTML = `
+                            <div class="hand-strength">
+                                <span class="hand-name">${this.game.getHandName(player.handStrength.rank)}</span>
+                            </div>
+                        `;
+                    }
+                    
                     playerEl.innerHTML = `
                         ${betEl}
                         <div class="player-info">
@@ -1379,6 +1701,7 @@
                         <div class="player-status">
                             ${this.getPlayerStatus(player, index)}
                         </div>
+                        ${handStrengthHTML}
                     `;
                     
                     container.appendChild(playerEl);
@@ -1387,7 +1710,7 @@
             
             getPlayerStatus(player, index) {
                 if (this.game.status === 'waiting') return '等待开始';
-                if (this.game.status === 'completed' && player.id === this.game.winnerId) return '赢家!';
+                if (this.game.status === 'completed' && this.game.winnerId?.includes(player.id)) return '赢家!';
                 if (player.folded) return '已弃牌';
                 if (index === this.game.currentPlayerIndex) return '轮到行动';
                 if (player.currentBet > 0) return `已下注 ${player.currentBet}`;
@@ -1398,7 +1721,8 @@
             updateActionButtons() {
                 const isMyTurn = this.playerIndex === this.game.currentPlayerIndex;
                 const player = this.playerIndex !== -1 ? this.game.players[this.playerIndex] : null;
-                const maxBet = Math.max(...this.game.players.map(p => p.currentBet));
+                const maxBet = this.game.currentMaxBet;
+                const callAmount = player ? Math.min(player.chips, maxBet - player.currentBet) : 0;
                 const isGameActive = this.game.status === 'in-progress';
                 
                 // 弃牌按钮
@@ -1409,24 +1733,27 @@
                 document.getElementById('btn-check').disabled = !isMyTurn || !isGameActive || !canCheck;
                 
                 // 跟注按钮
-                const callAmount = player ? maxBet - player.currentBet : 0;
                 document.getElementById('btn-call').disabled = !isMyTurn || !isGameActive || callAmount <= 0;
                 document.getElementById('btn-call').innerHTML = callAmount > 0 ? 
                     `<i class="fas fa-handshake"></i> 跟注 ${callAmount}` : 
                     `<i class="fas fa-check"></i> 过牌`;
                 
                 // 加注按钮
-                const canRaise = player && player.chips > 0;
+                const minRaise = maxBet + this.game.minRaise;
+                const maxRaise = player ? player.chips : 0;
+                const canRaise = player && maxRaise >= minRaise;
                 document.getElementById('btn-raise').disabled = !isMyTurn || !isGameActive || !canRaise;
                 
                 // 全下按钮
                 document.getElementById('btn-allin').disabled = !isMyTurn || !isGameActive || !player || player.chips <= 0;
                 
-                // 更新滑块最大值
+                // 更新滑块
                 if (player) {
                     const slider = document.getElementById('bet-slider');
-                    slider.min = this.game.minBet;
+                    slider.min = minRaise;
                     slider.max = Math.min(player.chips, 5000);
+                    slider.value = Math.max(minRaise, slider.min);
+                    document.getElementById('bet-value').textContent = slider.value.toLocaleString();
                 }
                 
                 // 新游戏按钮可见性
@@ -1469,8 +1796,8 @@
             
             // 添加初始日志
             gameManager.addLogEntry('[系统] 欢迎使用德州扑克');
-            gameManager.addLogEntry('[系统] 已更新到 v8.0');
-            gameManager.addLogEntry('[系统] 修复了玩家列表未定义的问题');
+            gameManager.addLogEntry('[系统] 已修复所有下注逻辑和判断输赢逻辑问题');
+            gameManager.addLogEntry('[系统] 版本 v9.0 - 完整手牌评估系统');
         });
     </script>
 </body>
