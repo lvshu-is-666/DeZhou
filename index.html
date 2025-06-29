@@ -523,14 +523,6 @@
             text-align: center;
             display: none;
         }
-        .db-config {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 15px;
-            font-size: 0.85rem;
-            max-width: 600px;
-        }
         .hand-strength {
             position: absolute;
             bottom: 5px;
@@ -637,8 +629,7 @@
                 <div class="control-section">
                     <h2><i class="fas fa-scroll"></i> 游戏日志</h2>
                     <div class="game-log" id="game-log">
-                        <div class="log-entry">[系统] 游戏已准备好</div>
-                        <div class="log-entry">[系统] 请输入名字并创建或加入房间</div>
+                        
                     </div>
                 </div>
                 
@@ -719,6 +710,7 @@
                 this.winnerId = null;
                 this.events = [];
                 this.currentMaxBet = 0; // 当前轮最大下注额
+                this.playerActions = 0; // 当前轮玩家行动次数
             }
             
             addPlayer(name) {
@@ -789,6 +781,7 @@
                 this.pot = smallBlind + bigBlind;
                 this.currentPlayerIndex = (this.bigBlindIndex + 1) % this.players.length;
                 this.currentMaxBet = bigBlind;
+                this.playerActions = 0;
                 
                 this.addEvent(`${this.players[this.smallBlindIndex].name} 下小盲注 ${smallBlind}`);
                 this.addEvent(`${this.players[this.bigBlindIndex].name} 下大盲注 ${bigBlind}`);
@@ -822,6 +815,7 @@
                 this.resetPlayerBets();
                 this.currentPlayerIndex = this.smallBlindIndex;
                 this.currentMaxBet = 0;
+                this.playerActions = 0;
             }
             
             resetPlayerBets() {
@@ -879,6 +873,7 @@
                             this.currentMaxBet = player.currentBet;
                             success = true;
                             actionMessage = `${player.name} 加注 ${raiseAmount}`;
+                            this.playerActions = 0; // 重置行动计数
                         }
                         break;
                         
@@ -890,6 +885,7 @@
                             this.pot += allInAmount;
                             if (allInAmount > this.currentMaxBet) {
                                 this.currentMaxBet = allInAmount;
+                                this.playerActions = 0; // 重置行动计数
                             }
                             success = true;
                             actionMessage = `${player.name} 全下 ${allInAmount}`;
@@ -901,6 +897,7 @@
                     player.lastAction = action;
                     this.addEvent(actionMessage);
                     this.moveToNextPlayer();
+                    this.playerActions++;
                     this.checkRoundCompletion();
                     this.lastUpdate = Date.now();
                 }
@@ -936,10 +933,13 @@
                 
                 // 检查是否所有玩家下注额相等或都过牌
                 const allActionsComplete = activePlayers.every(player => {
-                    return player.currentBet === this.currentMaxBet || player.lastAction === 'check';
+                    return player.currentBet === this.currentMaxBet;
                 });
                 
-                if (allActionsComplete) {
+                // 检查是否所有玩家都已行动过（防止提前结束）
+                const allPlayersActed = this.playerActions >= activePlayers.length;
+                
+                if (allActionsComplete && allPlayersActed) {
                     if (this.gameStage < 3) {
                         this.dealCommunityCards();
                     } else {
@@ -1079,9 +1079,13 @@
                 
                 for (const value in groups) {
                     if (groups[value].length === 3) {
-                        three = groups[value];
-                    } else if (groups[value].length === 2) {
-                        two = groups[value];
+                        if (!three || parseInt(value) > three[0].numericValue) {
+                            three = groups[value];
+                        }
+                    } else if (groups[value].length >= 2) {
+                        if (!two || parseInt(value) > two[0].numericValue) {
+                            two = groups[value].slice(0, 2);
+                        }
                     }
                 }
                 
@@ -1090,7 +1094,7 @@
                         rank: 6,
                         value: three[0].numericValue,
                         secondary: two[0].numericValue,
-                        cards: [...three.slice(0, 3), ...two.slice(0, 2)]
+                        cards: [...three.slice(0, 3), ...two]
                     };
                 }
                 return null;
@@ -1102,6 +1106,7 @@
                     return {
                         rank: 5,
                         value: flushCards[0].numericValue,
+                        kickers: flushCards.slice(1, 5).map(c => c.numericValue),
                         cards: flushCards.slice(0, 5)
                     };
                 }
@@ -1157,18 +1162,26 @@
             
             checkThreeOfAKind(cards) {
                 const groups = this.groupByValue(cards);
+                let bestThree = null;
+                
                 for (const value in groups) {
                     if (groups[value].length === 3) {
-                        const kickers = cards.filter(c => c.numericValue !== parseInt(value))
-                            .sort((a, b) => b.numericValue - a.numericValue)
-                            .slice(0, 2);
-                        return {
-                            rank: 3,
-                            value: parseInt(value),
-                            kickers: kickers.map(c => c.numericValue),
-                            cards: [...groups[value].slice(0, 3), ...kickers]
-                        };
+                        if (!bestThree || parseInt(value) > bestThree[0].numericValue) {
+                            bestThree = groups[value];
+                        }
                     }
+                }
+                
+                if (bestThree) {
+                    const kickers = cards.filter(c => c.numericValue !== bestThree[0].numericValue)
+                        .sort((a, b) => b.numericValue - a.numericValue)
+                        .slice(0, 2);
+                    return {
+                        rank: 3,
+                        value: bestThree[0].numericValue,
+                        kickers: kickers.map(c => c.numericValue),
+                        cards: [...bestThree.slice(0, 3), ...kickers]
+                    };
                 }
                 return null;
             }
@@ -1176,25 +1189,32 @@
             checkTwoPair(cards) {
                 const groups = this.groupByValue(cards);
                 const pairs = [];
+                
                 for (const value in groups) {
-                    if (groups[value].length === 2) {
-                        pairs.push({ value: parseInt(value), cards: groups[value] });
+                    if (groups[value].length >= 2) {
+                        pairs.push({ value: parseInt(value), cards: groups[value].slice(0, 2) });
                     }
                 }
                 
                 if (pairs.length >= 2) {
+                    // 按牌值排序
                     pairs.sort((a, b) => b.value - a.value);
+                    
+                    // 取最大的两对
+                    const topPairs = pairs.slice(0, 2);
+                    
+                    // 找踢脚牌
                     const kicker = cards.filter(c => 
-                        c.numericValue !== pairs[0].value && 
-                        c.numericValue !== pairs[1].value)
+                        c.numericValue !== topPairs[0].value && 
+                        c.numericValue !== topPairs[1].value)
                         .sort((a, b) => b.numericValue - a.numericValue)[0];
                     
                     return {
                         rank: 2,
-                        value: pairs[0].value,
-                        secondary: pairs[1].value,
+                        value: topPairs[0].value,
+                        secondary: topPairs[1].value,
                         kicker: kicker.numericValue,
-                        cards: [...pairs[0].cards.slice(0, 2), ...pairs[1].cards.slice(0, 2), kicker]
+                        cards: [...topPairs[0].cards, ...topPairs[1].cards, kicker]
                     };
                 }
                 return null;
@@ -1202,18 +1222,26 @@
             
             checkOnePair(cards) {
                 const groups = this.groupByValue(cards);
+                let bestPair = null;
+                
                 for (const value in groups) {
-                    if (groups[value].length === 2) {
-                        const kickers = cards.filter(c => c.numericValue !== parseInt(value))
-                            .sort((a, b) => b.numericValue - a.numericValue)
-                            .slice(0, 3);
-                        return {
-                            rank: 1,
-                            value: parseInt(value),
-                            kickers: kickers.map(c => c.numericValue),
-                            cards: [...groups[value].slice(0, 2), ...kickers]
-                        };
+                    if (groups[value].length >= 2) {
+                        if (!bestPair || parseInt(value) > bestPair[0].numericValue) {
+                            bestPair = groups[value];
+                        }
                     }
+                }
+                
+                if (bestPair) {
+                    const kickers = cards.filter(c => c.numericValue !== bestPair[0].numericValue)
+                        .sort((a, b) => b.numericValue - a.numericValue)
+                        .slice(0, 3);
+                    return {
+                        rank: 1,
+                        value: bestPair[0].numericValue,
+                        kickers: kickers.map(c => c.numericValue),
+                        cards: [...bestPair.slice(0, 2), ...kickers]
+                    };
                 }
                 return null;
             }
@@ -1268,9 +1296,12 @@
                 }
                 
                 // 比较踢脚牌
-                for (let i = 0; i < Math.max(hand1.kickers?.length || 0, hand2.kickers?.length || 0); i++) {
-                    const k1 = hand1.kickers?.[i] || 0;
-                    const k2 = hand2.kickers?.[i] || 0;
+                const kickers1 = hand1.kickers || [];
+                const kickers2 = hand2.kickers || [];
+                
+                for (let i = 0; i < Math.max(kickers1.length, kickers2.length); i++) {
+                    const k1 = kickers1[i] || 0;
+                    const k2 = kickers2[i] || 0;
                     if (k1 !== k2) {
                         return k1 - k2;
                     }
@@ -1313,6 +1344,7 @@
                 this.winnerId = null;
                 this.status = 'in-progress';
                 this.currentMaxBet = 0;
+                this.playerActions = 0;
                 
                 // 重置玩家状态但保留筹码
                 for (const player of this.players) {
@@ -1797,7 +1829,7 @@
             // 添加初始日志
             gameManager.addLogEntry('[系统] 欢迎使用德州扑克');
             gameManager.addLogEntry('[系统] 已修复所有下注逻辑和判断输赢逻辑问题');
-            gameManager.addLogEntry('[系统] 版本 v9.0 - 完整手牌评估系统');
+            gameManager.addLogEntry('[系统] 版本 v10.0 - 完整手牌评估系统');
         });
     </script>
 </body>
