@@ -657,7 +657,7 @@
                 <li>3. 所有玩家加入后游戏自动开始</li>
                 <li>4. 轮到您时使用操作按钮进行游戏</li>
                 <li>5. 游戏状态实时保存在Firebase新加坡数据库中</li>
-                <li>6. 修复了所有下注逻辑和判断输赢逻辑的问题</li>
+                <li>6. 修复了全下和弃牌后的胜负判断逻辑</li>
             </ul>
         </div>
         
@@ -711,6 +711,7 @@
                 this.events = [];
                 this.currentMaxBet = 0; // 当前轮最大下注额
                 this.playerActions = 0; // 当前轮玩家行动次数
+                this.activePlayers = []; // 当前活跃玩家
             }
             
             addPlayer(name) {
@@ -723,7 +724,8 @@
                     cards: [],
                     isActive: true,
                     lastAction: '',
-                    handStrength: null
+                    handStrength: null,
+                    allIn: false
                 };
                 this.players.push(player);
                 return player;
@@ -739,6 +741,7 @@
                 this.shuffleDeck();
                 this.dealCards();
                 this.setBlinds();
+                this.activePlayers = this.players.filter(p => !p.folded);
                 this.addEvent(`游戏开始! 盲注: ${Math.floor(this.minBet/2)}/${this.minBet}`);
                 return true;
             }
@@ -816,6 +819,7 @@
                 this.currentPlayerIndex = this.smallBlindIndex;
                 this.currentMaxBet = 0;
                 this.playerActions = 0;
+                this.activePlayers = this.players.filter(p => !p.folded);
             }
             
             resetPlayerBets() {
@@ -839,6 +843,7 @@
                         player.folded = true;
                         success = true;
                         actionMessage = `${player.name} 弃牌`;
+                        this.activePlayers = this.activePlayers.filter(p => p.id !== player.id);
                         break;
                         
                     case 'check':
@@ -856,9 +861,14 @@
                             this.pot += callAmount;
                             success = true;
                             actionMessage = `${player.name} 跟注 ${callAmount}`;
-                        } else {
+                            
+                            if (player.chips === 0) {
+                                player.allIn = true;
+                                this.addEvent(`${player.name} 已全下`);
+                            }
+                        } else if (this.currentMaxBet === 0) {
                             success = true;
-                            actionMessage = `${player.name} 无法跟注`;
+                            actionMessage = `${player.name} 过牌`;
                         }
                         break;
                         
@@ -874,6 +884,11 @@
                             success = true;
                             actionMessage = `${player.name} 加注 ${raiseAmount}`;
                             this.playerActions = 0; // 重置行动计数
+                            
+                            if (player.chips === 0) {
+                                player.allIn = true;
+                                this.addEvent(`${player.name} 已全下`);
+                            }
                         }
                         break;
                         
@@ -883,10 +898,13 @@
                             player.chips = 0;
                             player.currentBet += allInAmount;
                             this.pot += allInAmount;
+                            player.allIn = true;
+                            
                             if (allInAmount > this.currentMaxBet) {
                                 this.currentMaxBet = allInAmount;
                                 this.playerActions = 0; // 重置行动计数
                             }
+                            
                             success = true;
                             actionMessage = `${player.name} 全下 ${allInAmount}`;
                         }
@@ -896,8 +914,8 @@
                 if (success) {
                     player.lastAction = action;
                     this.addEvent(actionMessage);
-                    this.moveToNextPlayer();
                     this.playerActions++;
+                    this.moveToNextPlayer();
                     this.checkRoundCompletion();
                     this.lastUpdate = Date.now();
                 }
@@ -910,15 +928,19 @@
                 let loopCount = 0;
                 
                 while (loopCount < this.players.length) {
-                    if (!this.players[nextIndex].folded) {
+                    const player = this.players[nextIndex];
+                    
+                    // 跳过已弃牌或全下的玩家
+                    if (!player.folded && !player.allIn) {
                         this.currentPlayerIndex = nextIndex;
                         return;
                     }
+                    
                     nextIndex = (nextIndex + 1) % this.players.length;
                     loopCount++;
                 }
                 
-                // 所有玩家都弃牌了
+                // 所有玩家都弃牌或全下了
                 this.currentPlayerIndex = -1;
             }
             
@@ -931,15 +953,30 @@
                 const activePlayers = this.players.filter(p => !p.folded);
                 if (activePlayers.length === 0) return;
                 
-                // 检查是否所有玩家下注额相等或都过牌
+                // 如果只剩一个未弃牌玩家，直接获胜
+                if (activePlayers.length === 1) {
+                    const winner = activePlayers[0];
+                    winner.chips += this.pot;
+                    this.winnerId = winner.id;
+                    this.addEvent(`${winner.name} 赢得彩池 ${this.pot}！`);
+                    this.pot = 0;
+                    this.status = 'completed';
+                    return;
+                }
+                
+                // 检查是否所有玩家行动一致
                 const allActionsComplete = activePlayers.every(player => {
-                    return player.currentBet === this.currentMaxBet;
+                    return player.currentBet === this.currentMaxBet || 
+                           player.allIn || 
+                           player.folded;
                 });
                 
-                // 检查是否所有玩家都已行动过（防止提前结束）
-                const allPlayersActed = this.playerActions >= activePlayers.length;
+                // 检查所有可行动玩家是否都已行动
+                const actingPlayers = activePlayers.filter(p => !p.allIn && !p.folded);
+                const allActed = actingPlayers.length === 0 || 
+                                this.playerActions >= actingPlayers.length;
                 
-                if (allActionsComplete && allPlayersActed) {
+                if (allActionsComplete && allActed) {
                     if (this.gameStage < 3) {
                         this.dealCommunityCards();
                     } else {
@@ -951,20 +988,18 @@
             
             determineWinner() {
                 // 评估所有未弃牌玩家的牌型
-                for (const player of this.players) {
-                    if (!player.folded) {
-                        const allCards = [...player.cards, ...this.communityCards];
-                        player.handStrength = this.evaluateHand(allCards);
-                    }
+                const activePlayers = this.players.filter(p => !p.folded);
+                
+                for (const player of activePlayers) {
+                    const allCards = [...player.cards, ...this.communityCards];
+                    player.handStrength = this.evaluateHand(allCards);
                 }
                 
                 // 找到最佳牌型
                 let bestHand = null;
                 let winners = [];
                 
-                for (const player of this.players) {
-                    if (player.folded) continue;
-                    
+                for (const player of activePlayers) {
                     if (!bestHand || this.compareHands(player.handStrength, bestHand) > 0) {
                         bestHand = player.handStrength;
                         winners = [player];
@@ -1345,6 +1380,7 @@
                 this.status = 'in-progress';
                 this.currentMaxBet = 0;
                 this.playerActions = 0;
+                this.activePlayers = [];
                 
                 // 重置玩家状态但保留筹码
                 for (const player of this.players) {
@@ -1353,6 +1389,7 @@
                     player.cards = [];
                     player.lastAction = '';
                     player.handStrength = null;
+                    player.allIn = false;
                 }
                 
                 // 轮转盲注位置
@@ -1364,6 +1401,7 @@
                 this.shuffleDeck();
                 this.dealCards();
                 this.setBlinds();
+                this.activePlayers = this.players.filter(p => !p.folded);
                 this.addEvent("新游戏开始!");
             }
         }
@@ -1744,6 +1782,7 @@
                 if (this.game.status === 'waiting') return '等待开始';
                 if (this.game.status === 'completed' && this.game.winnerId?.includes(player.id)) return '赢家!';
                 if (player.folded) return '已弃牌';
+                if (player.allIn) return '全下';
                 if (index === this.game.currentPlayerIndex) return '轮到行动';
                 if (player.currentBet > 0) return `已下注 ${player.currentBet}`;
                 if (player.lastAction) return this.getActionName(player.lastAction);
@@ -1828,8 +1867,8 @@
             
             // 添加初始日志
             gameManager.addLogEntry('[系统] 欢迎使用德州扑克');
-            gameManager.addLogEntry('[系统] 已修复所有下注逻辑和判断输赢逻辑问题');
-            gameManager.addLogEntry('[系统] 版本 v10.0 - 完整手牌评估系统');
+            gameManager.addLogEntry('[系统] 已修复全下和弃牌后的胜负判断逻辑');
+            gameManager.addLogEntry('[系统] 版本 v11.0 - 完整修复版');
         });
     </script>
 </body>
