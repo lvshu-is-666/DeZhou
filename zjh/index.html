@@ -57,6 +57,10 @@
         const comparePlayerSelect = document.getElementById('comparePlayer');
         const compareModal = document.getElementById('compareModal');
         const closeCompareModal = document.getElementById('closeCompareModal');
+        const gameLog = document.getElementById('gameLog');
+        const showLogBtn = document.getElementById('showLogBtn');
+        const logModal = document.getElementById('logModal');
+        const closeLogModal = document.getElementById('closeLogModal');
         
         // 扑克牌花色和点数
         const suits = ['hearts', 'diamonds', 'clubs', 'spades'];
@@ -74,6 +78,17 @@
             messageElement.textContent = message;
             messageBox.appendChild(messageElement);
             messageBox.scrollTop = messageBox.scrollHeight;
+        }
+        
+        // 添加游戏日志
+        function addGameLog(message, isHostOnly = false) {
+            if (isHostOnly && !isHost) return;
+            
+            const logElement = document.createElement('div');
+            logElement.className = 'log-entry';
+            logElement.textContent = message;
+            gameLog.appendChild(logElement);
+            gameLog.scrollTop = gameLog.scrollHeight;
         }
         
         // 创建房间
@@ -159,7 +174,8 @@
                 currentBet: 0,
                 currentPlayer: null,
                 roundCount: 0,
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                logs: []
             };
             
             // 添加房主玩家
@@ -246,6 +262,9 @@
                 if (roomData.hostPlayerId === playerId) {
                     isHost = true;
                     roomSettings.style.display = 'block';
+                    showLogBtn.style.display = 'block';
+                } else {
+                    showLogBtn.style.display = 'none';
                 }
                 
                 // 更新游戏信息
@@ -283,6 +302,12 @@
                     } else {
                         enableGameControls(false);
                     }
+                    
+                    // 检查是否只剩一人
+                    checkSinglePlayerWin(roomData);
+                    
+                    // 检查是否所有玩家all-in
+                    checkAllIn(roomData);
                 } else {
                     gameControls.style.display = 'none';
                     betControls.style.display = 'none';
@@ -440,6 +465,12 @@
                     updates[`players/${playerId}/folded`] = false;
                     updates[`players/${playerId}/hasLooked`] = false;
                     updates[`players/${playerId}/currentBet`] = 0;
+                    
+                    // 记录发牌日志（只有房主可见）
+                    if (isHost) {
+                        const logMessage = `发给 ${players[playerId].name} 的牌: ${playerCards.map(card => card.rank + card.suit[0]).join(', ')}`;
+                        addGameLog(logMessage, true);
+                    }
                 });
                 
                 // 更新游戏状态
@@ -453,6 +484,9 @@
                 update(roomRef, updates)
                     .then(() => {
                         addMessage('游戏开始！');
+                        if (isHost) {
+                            addGameLog('游戏开始！', true);
+                        }
                     })
                     .catch(error => {
                         console.error('开始游戏失败:', error);
@@ -527,6 +561,14 @@
             compareModal.style.display = 'none';
         });
         
+        closeLogModal.addEventListener('click', () => {
+            logModal.style.display = 'none';
+        });
+        
+        showLogBtn.addEventListener('click', () => {
+            logModal.style.display = 'flex';
+        });
+        
         // 显示选择比牌玩家
         function showComparePlayerSelect() {
             const roomRef = ref(database, `rooms/${currentRoomId}`);
@@ -595,8 +637,14 @@
                             updates[`pot`] = roomData.pot + diff;
                             
                             addMessage(`${playerName} 跟注 ${diff}筹码`);
+                            if (isHost) {
+                                addGameLog(`${playerName} 跟注 ${diff}筹码`, true);
+                            }
                         } else {
                             addMessage(`${playerName} 选择过牌`);
+                            if (isHost) {
+                                addGameLog(`${playerName} 选择过牌`, true);
+                            }
                         }
                         break;
                         
@@ -620,20 +668,30 @@
                         updates[`currentBet`] = totalBet;
                         
                         addMessage(`${playerName} 加注 ${raiseAmount}筹码`);
+                        if (isHost) {
+                            addGameLog(`${playerName} 加注 ${raiseAmount}筹码`, true);
+                        }
                         break;
                         
                     case 'fold':
                         updates[`players/${playerId}/folded`] = true;
                         addMessage(`${playerName} 选择弃牌`);
+                        if (isHost) {
+                            addGameLog(`${playerName} 选择弃牌`, true);
+                        }
                         break;
                         
                     case 'allIn':
-                        updates[`players/${playerId}/currentBet`] = currentPlayer.currentBet + currentPlayer.chips;
-                        updates[`pot`] = roomData.pot + currentPlayer.chips;
+                        const allInAmount = currentPlayer.chips;
+                        updates[`players/${playerId}/currentBet`] = currentPlayer.currentBet + allInAmount;
+                        updates[`pot`] = roomData.pot + allInAmount;
                         updates[`players/${playerId}/chips`] = 0;
-                        updates[`currentBet`] = Math.max(roomData.currentBet, currentPlayer.currentBet + currentPlayer.chips);
+                        updates[`currentBet`] = Math.max(roomData.currentBet, currentPlayer.currentBet + allInAmount);
                         
-                        addMessage(`${playerName} 全押 ${currentPlayer.chips}筹码！`);
+                        addMessage(`${playerName} 全押 ${allInAmount}筹码！`);
+                        if (isHost) {
+                            addGameLog(`${playerName} 全押 ${allInAmount}筹码！`, true);
+                        }
                         break;
                         
                     case 'compare':
@@ -657,22 +715,49 @@
                         // 比较牌型
                         const result = compareHands(currentPlayer.cards, targetPlayer.cards);
                         
-                        // 显示比牌结果
-                        showCompareResult(playerId, targetPlayerId, currentPlayer.cards, targetPlayer.cards, result);
+                        // 记录比牌日志
+                        const handType1 = getHandTypeName(currentPlayer.cards);
+                        const handType2 = getHandTypeName(targetPlayer.cards);
+                        const logMessage = `${playerName}(${handType1}) 与 ${targetPlayer.name}(${handType2}) 比牌`;
+                        
+                        // 显示比牌结果（如果房间人数<=3，则显示模态框；否则只记录消息）
+                        const playerCount = Object.keys(players).length;
+                        if (playerCount > 3) {
+                            // 多人游戏不显示牌
+                            if (result === 1) {
+                                addMessage(`${playerName} 与 ${targetPlayer.name} 比牌，${playerName} 获胜！${targetPlayer.name} 出局`);
+                                if (isHost) {
+                                    addGameLog(`${logMessage}，${playerName} 获胜`, true);
+                                }
+                            } else if (result === -1) {
+                                addMessage(`${playerName} 与 ${targetPlayer.name} 比牌，${targetPlayer.name} 获胜！${playerName} 出局`);
+                                if (isHost) {
+                                    addGameLog(`${logMessage}，${targetPlayer.name} 获胜`, true);
+                                }
+                            } else {
+                                addMessage(`${playerName} 与 ${targetPlayer.name} 比牌，平局！发起比牌者 ${playerName} 出局`);
+                                if (isHost) {
+                                    addGameLog(`${logMessage}，平局`, true);
+                                }
+                            }
+                        } else {
+                            // 显示比牌结果
+                            showCompareResult(playerId, targetPlayerId, currentPlayer.cards, targetPlayer.cards, result);
+                            if (isHost) {
+                                addGameLog(`${logMessage}`, true);
+                            }
+                        }
                         
                         // 根据结果更新游戏状态
                         if (result === 1) {
                             // 当前玩家赢
                             updates[`players/${targetPlayerId}/folded`] = true;
-                            addMessage(`${playerName} 与 ${targetPlayer.name} 比牌，${playerName} 获胜！`);
                         } else if (result === -1) {
                             // 目标玩家赢
                             updates[`players/${playerId}/folded`] = true;
-                            addMessage(`${playerName} 与 ${targetPlayer.name} 比牌，${targetPlayer.name} 获胜！`);
                         } else {
                             // 平局，发起比牌者输
                             updates[`players/${playerId}/folded`] = true;
-                            addMessage(`${playerName} 与 ${targetPlayer.name} 比牌，平局！发起比牌者 ${playerName} 出局`);
                         }
                         break;
                 }
@@ -686,19 +771,86 @@
                     updates['roundCount'] = roomData.roundCount + 1;
                 }
                 
-                // 检查游戏是否结束
-                const activePlayers = Object.values(players).filter(p => !p.folded);
-                if (activePlayers.length === 1) {
-                    updates['gameState'] = 'ended';
-                    addMessage(`游戏结束！${activePlayers[0].name} 获胜，赢得 ${roomData.pot}筹码`);
-                    
-                    // 分配筹码给获胜者
-                    updates[`players/${activePlayers[0].id}/chips`] = activePlayers[0].chips + roomData.pot;
-                }
-                
                 // 更新数据库
                 update(roomRef, updates);
             });
+        }
+        
+        // 检查是否只剩一个玩家未弃牌
+        function checkSinglePlayerWin(roomData) {
+            const players = roomData.players;
+            const activePlayers = Object.values(players).filter(p => !p.folded);
+            
+            if (activePlayers.length === 1) {
+                const winner = activePlayers[0];
+                const roomRef = ref(database, `rooms/${currentRoomId}`);
+                
+                const updates = {
+                    'gameState': 'ended',
+                    'currentPlayer': null
+                };
+                
+                // 分配筹码给获胜者
+                updates[`players/${winner.id}/chips`] = winner.chips + roomData.pot;
+                
+                update(roomRef, updates)
+                    .then(() => {
+                        addMessage(`游戏结束！${winner.name} 获胜，赢得 ${roomData.pot}筹码`);
+                        if (isHost) {
+                            addGameLog(`游戏结束！${winner.name} 获胜，赢得 ${roomData.pot}筹码`, true);
+                        }
+                    });
+            }
+        }
+        
+        // 检查是否所有玩家都all-in
+        function checkAllIn(roomData) {
+            const players = roomData.players;
+            const activePlayers = Object.values(players).filter(p => !p.folded);
+            
+            // 所有玩家都all-in（筹码为0）且未弃牌
+            const allAllIn = activePlayers.every(p => p.chips === 0);
+            
+            if (allAllIn && activePlayers.length > 1) {
+                const roomRef = ref(database, `rooms/${currentRoomId}`);
+                
+                // 找出牌最大的玩家
+                let winner = activePlayers[0];
+                for (let i = 1; i < activePlayers.length; i++) {
+                    const result = compareHands(winner.cards, activePlayers[i].cards);
+                    if (result < 0) {
+                        winner = activePlayers[i];
+                    } else if (result === 0) {
+                        // 平局，按玩家id排序取第一个
+                        if (winner.id > activePlayers[i].id) {
+                            winner = activePlayers[i];
+                        }
+                    }
+                }
+                
+                const updates = {
+                    'gameState': 'ended',
+                    'currentPlayer': null
+                };
+                
+                // 分配筹码给获胜者
+                updates[`players/${winner.id}/chips`] = winner.chips + roomData.pot;
+                
+                // 其他玩家标记为弃牌
+                activePlayers.forEach(player => {
+                    if (player.id !== winner.id) {
+                        updates[`players/${player.id}/folded`] = true;
+                    }
+                });
+                
+                update(roomRef, updates)
+                    .then(() => {
+                        addMessage(`所有玩家全押！${winner.name} 获胜，赢得 ${roomData.pot}筹码`);
+                        if (isHost) {
+                            addGameLog(`所有玩家全押！${winner.name} 获胜，赢得 ${roomData.pot}筹码`, true);
+                        }
+                    });
+            }
         }
         
         // 获取下一个玩家
@@ -733,6 +885,10 @@
                     hasLooked = true;
                     displayPlayerCards(playerCards, true);
                     addMessage(`${playerName} 查看了自己的牌`);
+                    if (isHost) {
+                        const handType = getHandTypeName(playerCards);
+                        addGameLog(`${playerName} 看牌，牌型: ${handType}`, true);
+                    }
                 });
         }
         
@@ -955,8 +1111,7 @@
         }
         
         // 初始化消息
-        addMessage('欢迎来到炸金花多人联机游戏！');
-        addMessage('请创建房间或输入房间号加入游戏。');
+        addMessage('欢迎来到炸金花多人联机游戏！请加入或创建一个房间开始游戏。');
     </script>
     <style>
         * {
@@ -1253,7 +1408,7 @@
             font-size: 0.7rem;
         }
         
-        .compare-modal {
+        .compare-modal, .log-modal {
             position: fixed;
             top: 0;
             left: 0;
@@ -1266,12 +1421,12 @@
             z-index: 1000;
         }
         
-        .compare-content {
+        .compare-content, .log-content {
             background: rgba(25, 30, 50, 0.95);
             border-radius: 15px;
             padding: 30px;
             width: 90%;
-            max-width: 600px;
+            max-width: 800px;
             text-align: center;
         }
         
@@ -1293,6 +1448,25 @@
             color: #ffd700;
             font-weight: bold;
             font-size: 2rem;
+        }
+        
+        .log-container {
+            max-height: 400px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            text-align: left;
+            margin: 20px 0;
+        }
+        
+        .log-entry {
+            padding: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
         }
         
         @media (max-width: 768px) {
@@ -1356,7 +1530,7 @@
                             </select>
                         </div>
                         <button id="startGameBtn"><i class="fas fa-play"></i> 开始游戏</button>
-                        <button id="endGameBtn"><i class="fas fa-stop"></i> 结束游戏</button>
+                        <button id="showLogBtn" style="display: none;"><i class="fas fa-scroll"></i> 查看日志</button>
                     </div>
                 </div>
             </div>
@@ -1450,6 +1624,16 @@
             </div>
             <div id="compareResult" class="result-display"></div>
             <button id="closeCompareModal">关闭</button>
+        </div>
+    </div>
+    
+    <div id="logModal" class="log-modal" style="display: none;">
+        <div class="log-content">
+            <h2><i class="fas fa-scroll"></i> 游戏日志</h2>
+            <div class="log-container" id="gameLog">
+                <div class="log-entry">游戏日志将在这里显示（仅房主可见）</div>
+            </div>
+            <button id="closeLogModal">关闭</button>
         </div>
     </div>
     
